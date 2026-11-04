@@ -367,6 +367,35 @@
       .sigla { font-size: 18px; }
       .card { padding: 13px; }
     }
+
+    /* palpites em lote, resultados e histórico do admin */
+    .jogo.compacto { padding: 10px 12px; margin: 8px 0; }
+    .jogo.compacto .linha { padding: 0; border: 0; }
+    .jogo.alterado { border-color: var(--verde); box-shadow: 0 0 0 1px var(--verde) inset; }
+    #barraSalvar {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom, 0px));
+      background: var(--painel); border-top: 1px solid var(--borda);
+    }
+    #barraSalvar button { display: block; width: 100%; max-width: 760px; margin: 0 auto; padding: 14px; font-size: 16px; }
+    body.comBarra { padding-bottom: 86px; }
+    .partida {
+      display: flex; justify-content: space-between; align-items: center; gap: 10px;
+      width: 100%; text-align: left; margin: 0 0 8px; padding: 12px;
+      background: var(--painel2); color: var(--texto); border: 1px solid var(--borda);
+    }
+    .partida.sel { border-color: var(--verde); box-shadow: 0 0 0 1px var(--verde) inset; }
+    .partida .ok { color: var(--verde); font-weight: 800; white-space: nowrap; }
+    .bloco { border: 1px solid var(--borda); border-radius: 12px; margin: 8px 0; background: var(--painel2); }
+    .bloco > summary {
+      cursor: pointer; padding: 12px; font-weight: 700; list-style: none;
+      display: flex; justify-content: space-between; gap: 10px;
+    }
+    .bloco > summary::-webkit-details-marker { display: none; }
+    .bloco .corpo { padding: 0 12px 8px; }
+    .rodTit { color: var(--suave); font-size: 12px; font-weight: 800; margin: 10px 0 2px; text-transform: uppercase; }
+    #formResultado .placarRes { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: end; }
+    #formResultado .placarRes span { padding-bottom: 14px; font-weight: 900; }
   </style>
 </head>
 
@@ -420,8 +449,8 @@
       <!-- CADASTRO COM CONVITE -->
       <div id="painelCadastro" class="card oculto">
         <h2>Criar minha conta</h2>
-        <p class="muted">
-          Peça o código de convite ao administrador do bolão.
+        <p class="muted" id="txtConvite">
+          Peça o link de convite ao administrador do bolão.
         </p>
 
         <form id="formCadastro">
@@ -439,7 +468,7 @@
               minlength="4" maxlength="8" required>
           </label>
 
-          <label>Código de convite
+          <label id="lblConvite">Código de convite
             <input id="cadConvite" autocomplete="off" required>
           </label>
 
@@ -476,7 +505,7 @@
       <nav class="abas">
         <button class="abaBotao ativa" data-aba="jogos">⚽ Jogos</button>
         <button class="abaBotao" data-aba="ranking">🏆 Ranking</button>
-        <button class="abaBotao" id="abaMeus" data-aba="meus">📝 Meus palpites</button>
+        <button class="abaBotao" data-aba="meus">📝 Meus palpites</button>
         <button class="abaBotao" data-aba="conta">🔐 Minha conta</button>
         <button class="abaBotao oculto" id="abaAdmin" data-aba="admin">⚙️ Administração</button>
       </nav>
@@ -486,7 +515,7 @@
           <h2>Jogos e palpites</h2>
           <p class="muted">
             Você ganha 5 pontos pelo placar exato e 3 por acertar vitória,
-            empate ou derrota. O palpite fecha no horário do jogo.
+            empate ou derrota. Preencha quantos quiser e salve todos de uma vez.
           </p>
           <div id="chipsRodada" class="chips"></div>
           <select id="filtroRodada" class="oculto">
@@ -500,9 +529,6 @@
         <div class="card">
           <h2>🏆 Classificação geral</h2>
           <p class="muted">Desempate: maior número de placares exatos.</p>
-          <label>Campeonato
-            <select id="filtroRankingCamp"></select>
-          </label>
           <label>Classificação
             <select id="filtroRankingRodada"><option value="">Geral</option></select>
           </label>
@@ -615,6 +641,14 @@
             </label>
             <button type="submit">Criar campeonato</button>
           </form>
+          <div id="boxConvite" style="margin:6px 0 18px">
+            <div class="muted">Link de convite (já leva o código, ninguém precisa digitar)</div>
+            <input id="linkConvite" readonly style="margin-bottom:8px">
+            <div class="botoes" style="margin-top:0">
+              <button type="button" class="pequeno" id="btnCopiarConvite">Copiar link</button>
+              <button type="button" class="pequeno secundario" id="btnConviteZap">Mensagem pronta (WhatsApp)</button>
+            </div>
+          </div>
           <form id="formConfig" style="margin-top:18px">
             <label>Fechar palpites quantos minutos antes do jogo?
               <input id="cfgPrazo" type="number" min="0" max="180" required>
@@ -715,19 +749,28 @@
 
         <div class="card">
           <h3>Registrar resultado</h3>
-          <form id="formResultado">
-            <label>Partida
-              <select id="resultadoJogo" required></select>
-            </label>
-            <div class="grade">
-              <label>Gols do mandante
-                <input id="resultadoMandante" type="number" min="0" max="30" required>
+          <label id="resCampBox">Campeonato
+            <select id="resCamp"></select>
+          </label>
+          <div class="muted" style="margin:10px 0 4px">Rodada</div>
+          <div id="resRodadas" class="chips"></div>
+          <div class="muted" style="margin:6px 0 8px">Partida</div>
+          <div id="resPartidas"></div>
+          <form id="formResultado" class="oculto">
+            <div id="resTitulo" style="font-weight:800;margin:10px 0 4px"></div>
+            <div class="placarRes">
+              <label style="margin:0"><span id="resNomeM" style="display:block;padding:0;font-weight:400"></span>
+                <input id="resultadoMandante" type="number" inputmode="numeric" min="0" max="30" required>
               </label>
-              <label>Gols do visitante
-                <input id="resultadoVisitante" type="number" min="0" max="30" required>
+              <span>×</span>
+              <label style="margin:0"><span id="resNomeV" style="display:block;padding:0;font-weight:400"></span>
+                <input id="resultadoVisitante" type="number" inputmode="numeric" min="0" max="30" required>
               </label>
             </div>
-            <button type="submit">Salvar resultado</button>
+            <div class="botoes">
+              <button type="submit" id="btnSalvarRes">Salvar resultado</button>
+              <button type="button" id="btnReabrirRes" class="secundario oculto">Reabrir (desfazer)</button>
+            </div>
           </form>
         </div>
 
@@ -752,13 +795,21 @@
 
         <div class="card">
           <h3>Participantes</h3>
-          <p class="muted">Os participantes criam as próprias contas usando o convite.</p>
+          <p class="muted">Os participantes criam as próprias contas pelo link de convite. Para excluir de vez, desative primeiro.</p>
           <div id="listaUsuarios"></div>
         </div>
 
         <div class="card">
           <h3>Palpites registrados</h3>
-          <div id="listaPalpitesAdmin"></div>
+          <div class="grade">
+            <label style="margin:0">Rodada
+              <select id="histRodada"></select>
+            </label>
+            <label style="margin:0">Buscar participante
+              <input id="histBusca" placeholder="Nome" autocomplete="off">
+            </label>
+          </div>
+          <div id="listaPalpitesAdmin" style="margin-top:10px"></div>
         </div>
       </section>
     </section>
@@ -784,6 +835,10 @@
     </div>
   </div>
 
+  <div id="barraSalvar" class="oculto">
+    <button id="btnSalvarTodos" type="button">Salvar palpites</button>
+  </div>
+
   <div id="toast"><span class="check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span id="toastTexto"></span></div>
 
   <script>
@@ -793,7 +848,7 @@
     const guardar = {
       ler() { try { return sessionStorage.getItem("bolaoToken") || ""; } catch (e) { return ""; } },
       salvar(v) { try { sessionStorage.setItem("bolaoToken", v); } catch (e) {} },
-      apagar() { try { guardar.apagar(); } catch (e) {} }
+      apagar() { try { sessionStorage.removeItem("bolaoToken"); } catch (e) {} }
     };
 
     const estado = {
@@ -802,8 +857,16 @@
       dados: null,
       carregando: false,
       camp: "",
-      campRank: ""
+      rascunho: {},
+      res: { camp: "", rodada: "", jogoId: "", chave: "" },
+      histInit: null
     };
+
+    // Link de convite: ...?c=CODIGO
+    const CONVITE_URL = (function () {
+      try { return (new URLSearchParams(location.search).get("c") || "").trim(); }
+      catch (e) { return ""; }
+    })();
 
     const $ = id => document.getElementById(id);
 
@@ -907,11 +970,22 @@
     function alternarLogin(entrar) {
       $("telaLogin").classList.toggle("oculto", !entrar);
       $("telaApp").classList.toggle("oculto", entrar);
+      if (entrar) {
+        estado.rascunho = {};
+        estado.res = { camp: "", rodada: "", jogoId: "", chave: "" };
+        estado.histInit = null;
+      }
+      atualizarBarra();
     }
 
     function abrirCadastro() {
       $("painelCadastro").classList.remove("oculto");
       $("formCadastro").reset();
+      if (CONVITE_URL) {
+        $("cadConvite").value = CONVITE_URL;
+        $("lblConvite").classList.add("oculto");
+        $("txtConvite").textContent = "Convite reconhecido. Escolha seu nome e um PIN.";
+      }
       $("cadNome").focus();
     }
 
@@ -982,7 +1056,6 @@
       $("perfilUsuario").textContent =
         d.usuario.perfil === "ADMIN" ? "ADMINISTRADOR" : "PARTICIPANTE";
 
-      $("abaMeus").classList.toggle("oculto", d.usuario.perfil === "ADMIN");
       $("abaAdmin").classList.toggle("oculto",
         d.usuario.perfil !== "ADMIN");
 
@@ -1051,17 +1124,46 @@
         return;
       }
 
+      const admin = d.usuario.perfil === "ADMIN";
+      const idsSujos = new Set(sujos().map(x => String(x.jogoId)));
+
       $("listaJogos").innerHTML = jogos.map(j => {
         const p = meus.find(x => String(x.jogoId) === String(j.id));
-        const fechado = j.status === "ENCERRADO" ||
-          new Date() >= new Date(j.limite);
-        const admin = d.usuario.perfil === "ADMIN";
         const resultado = j.status === "ENCERRADO";
+        const fechado = resultado || new Date() >= new Date(j.limite);
         const podePalpitar = !fechado && !admin;
         const q = quando(j);
 
+        // Jogo encerrado: uma linha só (toque em "palpites da galera" para abrir)
+        if (resultado) {
+          let meu = "";
+          if (!admin) {
+            if (p) {
+              const pts = pontosFront(p, j);
+              meu = `você: ${p.golsMandante}×${p.golsVisitante} · ${pts} pt${pts === 1 ? "" : "s"}`;
+            } else {
+              meu = "sem palpite";
+            }
+          }
+          return `
+          <article class="jogo compacto" id="jogo_${j.id}">
+            <div class="linha">
+              <span><strong>${textoSeguro(j.mandanteSigla)}</strong>
+                <strong class="verde">${j.golsMandante} × ${j.golsVisitante}</strong>
+                <strong>${textoSeguro(j.visitanteSigla)}</strong>
+                <span class="muted"> · R${j.rodada}</span></span>
+              ${meu ? `<span class="tag">${textoSeguro(meu)}</span>` : ""}
+            </div>
+            ${palpitesDoJogoHtml(j)}
+          </article>`;
+        }
+
+        const rasc = estado.rascunho[j.id];
+        const vm = rasc ? rasc.m : (p ? p.golsMandante : "");
+        const vv = rasc ? rasc.v : (p ? p.golsVisitante : "");
+
         return `
-          <article class="jogo" id="jogo_${j.id}">
+          <article class="jogo ${idsSujos.has(String(j.id)) ? "alterado" : ""}" id="jogo_${j.id}">
             <div class="jogoTopo">
               <span>Rodada ${j.rodada}</span>
               <span>📅 ${q.dia} · ⏰ <strong style="color:var(--texto);font-size:15px">${q.hora}</strong></span>
@@ -1072,18 +1174,18 @@
                 ${textoSeguro(j.mandante)}
               </div>
               <div>
-                ${resultado
-                  ? `<div class="placarResultado">${j.golsMandante} × ${j.golsVisitante}</div>`
+                ${admin
+                  ? `<div class="placarResultado">×</div>`
                   : `<div class="placar">
-                      <input aria-label="Seu palpite para ${textoSeguro(j.mandante)}"
-                        id="pm_${j.id}" type="number" min="0" max="30"
-                        value="${p ? p.golsMandante : ""}"
-                        ${podePalpitar ? "" : "disabled"}>
+                      <input class="inpPalpite" data-j="${j.id}" data-l="m"
+                        aria-label="Seu palpite para ${textoSeguro(j.mandante)}"
+                        type="number" inputmode="numeric" min="0" max="30"
+                        value="${textoSeguro(vm)}" ${podePalpitar ? "" : "disabled"}>
                       <span>×</span>
-                      <input aria-label="Seu palpite para ${textoSeguro(j.visitante)}"
-                        id="pv_${j.id}" type="number" min="0" max="30"
-                        value="${p ? p.golsVisitante : ""}"
-                        ${podePalpitar ? "" : "disabled"}>
+                      <input class="inpPalpite" data-j="${j.id}" data-l="v"
+                        aria-label="Seu palpite para ${textoSeguro(j.visitante)}"
+                        type="number" inputmode="numeric" min="0" max="30"
+                        value="${textoSeguro(vv)}" ${podePalpitar ? "" : "disabled"}>
                     </div>`}
               </div>
               <div class="time">
@@ -1092,52 +1194,132 @@
               </div>
             </div>
             <div class="linha">
-              <span class="tag">${resultado ? "Encerrado" :
-                fechado ? "Palpites fechados" : admin ? "Administrador não palpita" : "Palpites até " + textoSeguro(j.limiteExibicao)}</span>
-              ${podePalpitar
-                ? `<button class="pequeno" onclick="salvarPalpiteTela('${j.id}')">
-                    ${p ? "Atualizar palpite" : "Salvar palpite"}
-                   </button>`
-                : ""}
+              <span class="tag">${fechado ? "Palpites fechados" :
+                "Palpites até " + textoSeguro(j.limiteExibicao)}</span>
+              ${p && !rasc ? '<span class="muted">✓ salvo</span>' : ""}
             </div>
             ${palpitesDoJogoHtml(j)}
           </article>`;
       }).join("");
+
+      atualizarBarra();
     }
 
-    async function salvarPalpiteTela(jogoId) {
-      const m = $("pm_" + jogoId);
-      const v = $("pv_" + jogoId);
+    function pontosFront(p, j) {
+      const pm = Number(p.golsMandante), pv = Number(p.golsVisitante);
+      const rm = Number(j.golsMandante), rv = Number(j.golsVisitante);
+      if (pm === rm && pv === rv) return 5;
+      return Math.sign(pm - pv) === Math.sign(rm - rv) ? 3 : 0;
+    }
 
-      if (!m || !v || m.value === "" || v.value === "") {
-        mostrarMensagem("Preencha os dois placares.", "erro");
+    function palpiteSalvo(jogoId) {
+      return ((estado.dados && estado.dados.meusPalpites) || [])
+        .find(x => String(x.jogoId) === String(jogoId));
+    }
+
+    // Palpites digitados que ainda não foram salvos (diferentes do que está salvo).
+    function sujos() {
+      const r = [];
+      Object.keys(estado.rascunho || {}).forEach(id => {
+        const x = estado.rascunho[id];
+        const p = palpiteSalvo(id);
+        const m = String(x.m), v = String(x.v);
+        if (m === "" && v === "") return;
+        if (p && String(p.golsMandante) === m && String(p.golsVisitante) === v) return;
+        r.push({ jogoId: id, m: m, v: v });
+      });
+      return r;
+    }
+
+    function atualizarBarra() {
+      const n = estado.dados && estado.usuario && estado.usuario.perfil !== "ADMIN"
+        ? sujos().length : 0;
+      const visivel = n > 0 &&
+        !$("painelJogos").classList.contains("oculto") &&
+        !$("telaApp").classList.contains("oculto");
+      $("barraSalvar").classList.toggle("oculto", !visivel);
+      document.body.classList.toggle("comBarra", visivel);
+      $("btnSalvarTodos").textContent = n === 1 ? "Salvar 1 palpite" : "Salvar " + n + " palpites";
+    }
+
+    $("listaJogos").addEventListener("input", e => {
+      const el = e.target;
+      if (!el.classList || !el.classList.contains("inpPalpite")) return;
+      if (el.value !== "" && Number(el.value) > 30) el.value = "30";
+      if (el.value !== "" && Number(el.value) < 0) el.value = "0";
+      const id = el.dataset.j;
+      const p = palpiteSalvo(id);
+      const r = estado.rascunho[id] ||
+        (estado.rascunho[id] = { m: p ? String(p.golsMandante) : "", v: p ? String(p.golsVisitante) : "" });
+      r[el.dataset.l] = el.value;
+      const card = $("jogo_" + id);
+      if (card) card.classList.toggle("alterado", sujos().some(x => String(x.jogoId) === String(id)));
+      atualizarBarra();
+    });
+
+    async function salvarTodosPalpites() {
+      const lista = sujos();
+      if (!lista.length) return;
+
+      const incompleto = lista.find(x => x.m === "" || x.v === "");
+      if (incompleto) {
+        const j = estado.dados.jogos.find(x => String(x.id) === String(incompleto.jogoId));
+        mostrarMensagem("Preencha os dois placares de " +
+          (j ? j.mandanteSigla + " x " + j.visitanteSigla : "um dos jogos") + ".", "erro");
+        if (j) {
+          $("filtroRodada").value = String(j.rodada);
+          desenharJogos();
+        }
         return;
       }
 
+      const btn = $("btnSalvarTodos");
+      btn.disabled = true;
       try {
-        await executar("salvarPalpite", estado.token, jogoId,
-          Number(m.value), Number(v.value));
+        const r = await executar("salvarPalpitesLote", estado.token,
+          lista.map(x => ({ jogoId: x.jogoId, golsMandante: Number(x.m), golsVisitante: Number(x.v) })));
 
-        // atualiza só este palpite na tela, sem recarregar tudo
-        const lista = estado.dados.meusPalpites || (estado.dados.meusPalpites = []);
-        const existente = lista.find(p => String(p.jogoId) === String(jogoId));
-        if (existente) {
-          existente.golsMandante = Number(m.value);
-          existente.golsVisitante = Number(v.value);
+        const recusados = r.recusados || [];
+        const negados = new Set(recusados.map(x => String(x.jogoId)));
+        const meus = estado.dados.meusPalpites || (estado.dados.meusPalpites = []);
+        const salvosIds = [];
+
+        lista.forEach(x => {
+          if (negados.has(String(x.jogoId))) return;
+          const e = meus.find(p => String(p.jogoId) === String(x.jogoId));
+          if (e) { e.golsMandante = Number(x.m); e.golsVisitante = Number(x.v); }
+          else meus.push({ jogoId: x.jogoId, golsMandante: Number(x.m), golsVisitante: Number(x.v) });
+          delete estado.rascunho[x.jogoId];
+          salvosIds.push(x.jogoId);
+        });
+
+        if (recusados.length) {
+          const nomes = recusados.map(x => {
+            const j = estado.dados.jogos.find(g => String(g.id) === String(x.jogoId));
+            return (j ? j.mandanteSigla + " x " + j.visitanteSigla : "jogo") + " (" + x.motivo.replace(/\.$/, "").toLowerCase() + ")";
+          });
+          recusados.forEach(x => delete estado.rascunho[x.jogoId]);
+          await atualizarDadosSemBloqueio();
+          mostrarMensagem(r.salvos + " palpite(s) salvo(s). Não foram salvos: " + nomes.join(", ") + ".", "");
         } else {
-          lista.push({ jogoId: jogoId, golsMandante: Number(m.value),
-            golsVisitante: Number(v.value) });
+          desenharJogos();
+          desenharMeusPalpites();
+          mostrarMensagem(r.salvos === 1 ? "Palpite salvo!" : r.salvos + " palpites salvos!", "ok");
         }
-        desenharJogos();
-        desenharMeusPalpites();
-        mostrarMensagem("Palpite salvo com sucesso!", "ok");
-        const card = $("jogo_" + jogoId);
-        if (card) {
-          card.classList.add("salvoOk");
-          setTimeout(() => card.classList.remove("salvoOk"), 1000);
-        }
-      } catch (erro) {}
+
+        salvosIds.forEach(id => {
+          const c = $("jogo_" + id);
+          if (c) { c.classList.add("salvoOk"); setTimeout(() => c.classList.remove("salvoOk"), 1000); }
+        });
+      } catch (erro) {
+        // a mensagem já foi mostrada; os palpites digitados continuam na tela
+      } finally {
+        btn.disabled = false;
+        atualizarBarra();
+      }
     }
+
+    $("btnSalvarTodos").addEventListener("click", salvarTodosPalpites);
 
     function pontosCliente(p, j) {
       const pm = Number(p.golsMandante), pv = Number(p.golsVisitante);
@@ -1146,14 +1328,14 @@
       return Math.sign(pm - pv) === Math.sign(rm - rv) ? 3 : 0;
     }
 
-    function rankingRodada(r, camp) {
+    function rankingRodada(r) {
       const d = estado.dados;
-      const lista = rankingBase(camp).map(x => ({
+      const lista = rankingBase().map(x => ({
         usuarioId: x.usuarioId, nome: x.nome,
         pontos: 0, exatos: 0, palpitesFeitos: 0
       }));
 
-      jogosAtuais(camp).filter(j => j.rodada === r && j.status === "ENCERRADO")
+      jogosAtuais().filter(j => j.rodada === r && j.status === "ENCERRADO")
         .forEach(j => {
           (d.palpitesJogos || [])
             .filter(p => String(p.jogoId) === String(j.id))
@@ -1175,20 +1357,9 @@
 
     function desenharRanking() {
       const d = estado.dados;
-
-      const camps = d.campeonatos || [];
-      if (!camps.some(c => String(c.id) === String(estado.campRank))) {
-        estado.campRank = estado.camp;
-      }
-      const selCamp = $("filtroRankingCamp");
-      selCamp.innerHTML = camps.map(c =>
-        `<option value="${textoSeguro(c.id)}">${textoSeguro(c.nome)}</option>`).join("");
-      selCamp.value = estado.campRank;
-      const camp = estado.campRank;
-
       const sel = $("filtroRankingRodada");
       const atual = sel.value;
-      const rodadasEnc = [...new Set(jogosAtuais(camp)
+      const rodadasEnc = [...new Set(jogosAtuais()
         .filter(j => j.status === "ENCERRADO").map(j => j.rodada))]
         .sort((a, b) => a - b);
       sel.innerHTML = '<option value="">Geral</option>' +
@@ -1196,11 +1367,11 @@
       sel.value = atual;
 
       const ranking = sel.value
-        ? rankingRodada(Number(sel.value), camp)
-        : rankingBase(camp);
+        ? rankingRodada(Number(sel.value))
+        : rankingBase();
 
       estado.rankingAtual = ranking;
-      estado.rankingTitulo = nomeCamp(camp) +
+      estado.rankingTitulo = nomeCamp(estado.camp) +
         (sel.value ? " — Rodada " + sel.value : " — Classificação geral");
 
       if (!ranking.length) {
@@ -1323,7 +1494,7 @@
         texto: `${nomeCamp(j.campeonatoId)} · R${j.rodada}: ${j.mandante} x ${j.visitante} (${j.dataExibicao})`
       }));
 
-      preencherSelect("resultadoJogo", jogos, "Escolha a partida");
+      desenharResultados();
       preencherSelect("edJogoSel", jogos, "Escolha a partida");
       preencherSelect("horarioJogo", jogos.filter(j => {
         const jogo = d.jogos.find(x => String(x.id) === String(j.value));
@@ -1351,20 +1522,20 @@
                   ? `<button class="secundario pequeno"
                       onclick="redefinirPinTela('${u.id}')">Redefinir PIN</button>
                      <button class="perigo pequeno"
-                      onclick="desativarUsuario('${u.id}','${textoSeguro(u.nome)}')">Desativar</button>`
+                      onclick="desativarUsuario('${u.id}')">Desativar</button>`
                   : `<button class="pequeno"
-                      onclick="reativarUsuario('${u.id}')">Reativar</button>`}
+                      onclick="reativarUsuario('${u.id}')">Reativar</button>
+                     <button class="perigo pequeno" data-acao="excluir"
+                      data-id="${u.id}">Excluir</button>`}
                </div>` : ""}
         </div>`).join("") || '<div class="vazio">Nenhum participante.</div>';
 
-      $("listaPalpitesAdmin").innerHTML = d.palpitesAdmin.map(p => `
-        <div class="linha">
-          <div>
-            <strong>${textoSeguro(p.nome)}</strong>
-            <div class="muted">${textoSeguro(p.jogo)}</div>
-          </div>
-          <strong>${textoSeguro(p.placar)}</strong>
-        </div>`).join("") || '<div class="vazio">Nenhum palpite registrado.</div>';
+      desenharPalpitesAdmin();
+
+      const cod = (d.config && d.config.convite) || "";
+      if (document.activeElement !== $("linkConvite")) {
+        $("linkConvite").value = cod ? urlConvite(cod) : "Convite não definido (rode definirCodigoConvite).";
+      }
     }
 
     async function redefinirPinTela(id) {
@@ -1375,8 +1546,9 @@
       await acao("redefinirPin", id, pin.trim());
     }
 
-    async function desativarUsuario(id, nome) {
-      if (!confirm(`Desativar a conta de ${nome}?`)) return;
+    async function desativarUsuario(id) {
+      const u = (estado.dados.usuarios || []).find(x => String(x.id) === String(id));
+      if (!confirm(`Desativar a conta de ${u ? u.nome : "este participante"}?`)) return;
       await acao("removerUsuario", id);
     }
 
@@ -1390,6 +1562,7 @@
 
       document.querySelectorAll(".abaBotao").forEach(b =>
         b.classList.toggle("ativa", b.dataset.aba === nome));
+      atualizarBarra();
     }
 
     $("formLogin").addEventListener("submit", async e => {
@@ -1427,7 +1600,9 @@
         $("formCadastro").reset();
         await carregar();
         mostrarMensagem("Conta criada! Você já está no bolão.", "ok");
-      } catch (erro) {}
+      } catch (erro) {
+        if (/convite/i.test(erro.message || "")) $("lblConvite").classList.remove("oculto");
+      }
     });
 
     $("btnSair").addEventListener("click", async () => {
@@ -1450,11 +1625,6 @@
 
     $("filtroRodada").addEventListener("change", desenharJogos);
     $("filtroRankingRodada").addEventListener("change", desenharRanking);
-    $("filtroRankingCamp").addEventListener("change", e => {
-      estado.campRank = e.target.value;
-      $("filtroRankingRodada").value = "";
-      desenharRanking();
-    });
 
     $("formPin").addEventListener("submit", async e => {
       e.preventDefault();
@@ -1512,7 +1682,8 @@
           $("loteTexto").value, $("loteCamp").value);
         $("formLote").reset();
         await atualizarDadosSemBloqueio();
-        mostrarMensagem(r.total + " jogo(s) cadastrado(s).", "ok");
+        mostrarMensagem(r.total + " jogo(s) cadastrado(s)." +
+          (r.ignorados ? " " + r.ignorados + " já existia(m) e foi(ram) ignorado(s)." : ""), "ok");
       } catch (erro) {}
     });
 
@@ -1549,20 +1720,6 @@
       } catch (erro) {}
     });
 
-    $("formResultado").addEventListener("submit", async e => {
-      e.preventDefault();
-
-      try {
-        await executar("registrarResultado", estado.token,
-          $("resultadoJogo").value,
-          $("resultadoMandante").value,
-          $("resultadoVisitante").value);
-        $("formResultado").reset();
-        await atualizarDadosSemBloqueio();
-        mostrarMensagem("Resultado registrado e ranking atualizado.", "ok");
-      } catch (erro) {}
-    });
-
     $("formHorario").addEventListener("submit", async e => {
       e.preventDefault();
 
@@ -1582,15 +1739,13 @@
       return c ? c.nome : "Campeonato";
     }
 
-    function jogosAtuais(camp) {
-      camp = camp === undefined ? estado.camp : camp;
-      return estado.dados.jogos.filter(j => String(j.campeonatoId) === String(camp));
+    function jogosAtuais() {
+      return estado.dados.jogos.filter(j => String(j.campeonatoId) === String(estado.camp));
     }
 
-    function rankingBase(camp) {
-      camp = camp === undefined ? estado.camp : camp;
+    function rankingBase() {
       const d = estado.dados;
-      return (d.rankings && d.rankings[camp]) || d.ranking || [];
+      return (d.rankings && d.rankings[estado.camp]) || d.ranking || [];
     }
 
     function prepararCamp() {
@@ -1608,8 +1763,6 @@
 
     $("seletorCamp").addEventListener("change", e => {
       estado.camp = e.target.value;
-      estado.campRank = e.target.value;
-      $("filtroRankingRodada").value = "";
       estado.rodadaDefinida = false;
       $("filtroRodada").value = "";
       desenharJogos();
@@ -1741,7 +1894,14 @@ vitoria|Vitória|#e31b23|#140b0c|#ffffff`.split("\n").forEach(l => {
       if (msg) mostrarMensagem(msg, "");
     }
 
+    let avisouRascunho = false;
     setInterval(() => {
+      const parado = Date.now() - ultimaAtividade;
+      if (parado < 60000) avisouRascunho = false;
+      if (estado.token && estado.dados && !avisouRascunho && parado > 8 * 60 * 1000 && sujos().length) {
+        avisouRascunho = true;
+        mostrarMensagem("Você tem palpites não salvos. Toque em “Salvar palpites” antes que a sessão expire.", "");
+      }
       if (estado.token && Date.now() - ultimaAtividade > 10 * 60 * 1000) {
         sairLocal("Sessão encerrada após 10 minutos sem uso. Entre novamente.");
       }
@@ -1854,6 +2014,274 @@ vitoria|Vitória|#e31b23|#140b0c|#ffffff`.split("\n").forEach(l => {
       } catch (erro) {}
     });
 
+
+
+    /* ===== Resultados: campeonato > rodada > partida > placar ===== */
+    const norm = t => String(t || "").normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+
+    function desenharResultados() {
+      const d = estado.dados;
+      const R = estado.res;
+      const camps = d.campeonatos || [];
+
+      if (!camps.some(c => String(c.id) === String(R.camp))) {
+        R.camp = estado.camp || (camps[0] ? camps[0].id : "");
+        R.rodada = ""; R.jogoId = ""; R.chave = "";
+      }
+      $("resCamp").innerHTML = camps.map(c =>
+        `<option value="${textoSeguro(c.id)}">${textoSeguro(c.nome)}</option>`).join("");
+      $("resCamp").value = R.camp;
+      $("resCampBox").classList.toggle("oculto", camps.length < 2);
+
+      const jogosC = d.jogos.filter(j => String(j.campeonatoId) === String(R.camp));
+      const rodadas = [...new Set(jogosC.map(j => j.rodada))].sort((a, b) => a - b);
+
+      if (!rodadas.length) {
+        $("resRodadas").innerHTML = "";
+        $("resPartidas").innerHTML = '<div class="vazio">Nenhuma partida neste campeonato.</div>';
+        $("formResultado").classList.add("oculto");
+        return;
+      }
+
+      // rodada padrão: a primeira que ainda tem jogo sem resultado
+      if (!rodadas.includes(Number(R.rodada))) {
+        const pend = jogosC.filter(j => j.status !== "ENCERRADO")
+          .map(j => j.rodada).sort((a, b) => a - b)[0];
+        R.rodada = pend != null ? pend : rodadas[rodadas.length - 1];
+        R.jogoId = ""; R.chave = "";
+      }
+
+      $("resRodadas").innerHTML = rodadas.map(r => {
+        const todos = jogosC.filter(j => j.rodada === r);
+        const feita = todos.every(j => j.status === "ENCERRADO");
+        return `<button type="button" class="chip ${r === Number(R.rodada) ? "ativa" : ""}"
+          data-r="${r}">Rodada ${r}${feita ? " ✓" : ""}</button>`;
+      }).join("");
+      const ativo = $("resRodadas").querySelector(".ativa");
+      if (ativo) $("resRodadas").scrollLeft = ativo.offsetLeft - $("resRodadas").clientWidth / 2 + ativo.clientWidth / 2;
+
+      const doDia = jogosC.filter(j => j.rodada === Number(R.rodada))
+        .sort((a, b) => new Date(a.dataHora) - new Date(b.dataHora));
+
+      // partida padrão: a primeira sem resultado
+      if (!doDia.some(j => String(j.id) === String(R.jogoId))) {
+        const prox = doDia.find(j => j.status !== "ENCERRADO");
+        R.jogoId = prox ? prox.id : "";
+        R.chave = "";
+      }
+
+      $("resPartidas").innerHTML = doDia.map(j => {
+        const q = quando(j);
+        const enc = j.status === "ENCERRADO";
+        return `<button type="button" class="partida ${String(j.id) === String(R.jogoId) ? "sel" : ""}" data-j="${j.id}">
+          <span><strong>${textoSeguro(j.mandanteSigla)} × ${textoSeguro(j.visitanteSigla)}</strong>
+            <div class="muted">${textoSeguro(q.dia)} · ${textoSeguro(q.hora)}</div></span>
+          ${enc ? `<span class="ok">${j.golsMandante} × ${j.golsVisitante} ✓</span>`
+                : '<span class="muted">sem resultado</span>'}
+        </button>`;
+      }).join("");
+
+      const sel = doDia.find(j => String(j.id) === String(R.jogoId));
+      $("formResultado").classList.toggle("oculto", !sel);
+      if (!sel) return;
+
+      const enc = sel.status === "ENCERRADO";
+      const q = quando(sel);
+      $("resTitulo").textContent = `Rodada ${sel.rodada} · ${sel.mandante} × ${sel.visitante} · ${q.dia} ${q.hora}`;
+      $("resNomeM").textContent = sel.mandanteSigla;
+      $("resNomeV").textContent = sel.visitanteSigla;
+      $("btnSalvarRes").textContent = enc ? "Corrigir resultado" : "Salvar resultado";
+      $("btnReabrirRes").classList.toggle("oculto", !enc);
+
+      // só preenche os campos quando muda a partida/resultado (não apaga o que está sendo digitado)
+      const chave = [sel.id, sel.status, sel.golsMandante, sel.golsVisitante].join("|");
+      if (R.chave !== chave) {
+        R.chave = chave;
+        $("resultadoMandante").value = enc ? sel.golsMandante : "";
+        $("resultadoVisitante").value = enc ? sel.golsVisitante : "";
+      }
+    }
+
+    $("resCamp").addEventListener("change", e => {
+      estado.res = { camp: e.target.value, rodada: "", jogoId: "", chave: "" };
+      desenharResultados();
+    });
+    $("resRodadas").addEventListener("click", e => {
+      const b = e.target.closest(".chip");
+      if (!b) return;
+      estado.res.rodada = Number(b.dataset.r);
+      estado.res.jogoId = ""; estado.res.chave = "";
+      desenharResultados();
+    });
+    $("resPartidas").addEventListener("click", e => {
+      const b = e.target.closest(".partida");
+      if (!b) return;
+      estado.res.jogoId = b.dataset.j; estado.res.chave = "";
+      desenharResultados();
+      $("resultadoMandante").focus();
+    });
+
+    $("formResultado").addEventListener("submit", async e => {
+      e.preventDefault();
+      const j = estado.dados.jogos.find(x => String(x.id) === String(estado.res.jogoId));
+      if (!j) return;
+      if (new Date() < new Date(j.dataHora) &&
+          !confirm("Esse jogo ainda não começou. Lançar o resultado mesmo assim?")) return;
+
+      const gm = $("resultadoMandante").value, gv = $("resultadoVisitante").value;
+      try {
+        await executar("registrarResultado", estado.token, j.id, gm, gv);
+        await atualizarDadosSemBloqueio();
+
+        // passa direto para a próxima partida da rodada que ainda não tem resultado
+        const proxima = estado.dados.jogos
+          .filter(x => String(x.campeonatoId) === String(estado.res.camp) &&
+            x.rodada === j.rodada && x.status !== "ENCERRADO")
+          .sort((a, b) => new Date(a.dataHora) - new Date(b.dataHora))[0];
+        estado.res.jogoId = proxima ? proxima.id : "";
+        estado.res.chave = "";
+        desenharResultados();
+
+        mostrarMensagem(`${j.mandanteSigla} ${gm} × ${gv} ${j.visitanteSigla} salvo` +
+          (proxima ? "" : " · rodada completa") + ".", "ok");
+        if (proxima) $("resultadoMandante").focus();
+      } catch (erro) {}
+    });
+
+    $("btnReabrirRes").addEventListener("click", async () => {
+      const id = estado.res.jogoId;
+      if (!id) return;
+      if (!confirm("Desfazer o resultado e reabrir esta partida?")) return;
+      try {
+        await executar("reabrirJogo", estado.token, id);
+        estado.res.chave = "";
+        await atualizarDadosSemBloqueio();
+        mostrarMensagem("Partida reaberta.", "ok");
+      } catch (erro) {}
+    });
+
+    /* ===== Histórico de palpites do admin (por participante) ===== */
+    const histAbertos = {};
+
+    function rodadaAtualAdmin() {
+      const js = estado.dados.jogos.filter(j => String(j.campeonatoId) === String(estado.camp));
+      const pend = js.filter(j => j.status !== "ENCERRADO").map(j => j.rodada).sort((a, b) => a - b)[0];
+      if (pend != null) return pend;
+      const todas = js.map(j => j.rodada).sort((a, b) => a - b);
+      return todas.length ? todas[todas.length - 1] : "";
+    }
+
+    function desenharPalpitesAdmin() {
+      const d = estado.dados;
+      const todos = (d.palpitesAdmin || [])
+        .filter(p => String(p.campeonatoId) === String(estado.camp));
+
+      const sel = $("histRodada");
+      const anterior = sel.value;
+      const rodadas = [...new Set(todos.map(p => p.rodada))].filter(r => r > 0).sort((a, b) => a - b);
+      sel.innerHTML = '<option value="">Todas as rodadas</option>' +
+        rodadas.map(r => `<option value="${r}">Rodada ${r}</option>`).join("");
+
+      if (estado.histInit == null) {
+        estado.histInit = true;
+        const ra = rodadaAtualAdmin();
+        sel.value = rodadas.includes(Number(ra)) ? String(ra) : "";
+      } else {
+        sel.value = anterior;
+      }
+
+      const rod = sel.value;
+      const busca = norm($("histBusca").value);
+
+      const porU = {};
+      todos
+        .filter(p => (!rod || String(p.rodada) === rod) && (!busca || norm(p.nome).includes(busca)))
+        .forEach(p => {
+          (porU[p.usuarioId] = porU[p.usuarioId] || { id: p.usuarioId, nome: p.nome, itens: [] }).itens.push(p);
+        });
+
+      const blocos = Object.values(porU).sort((a, b) => a.nome.localeCompare(b.nome));
+      if (!blocos.length) {
+        $("listaPalpitesAdmin").innerHTML = '<div class="vazio">Nenhum palpite nesse filtro.</div>';
+        return;
+      }
+
+      $("listaPalpitesAdmin").innerHTML = blocos.map(b => {
+        b.itens.sort((x, y) => x.rodada - y.rodada || x.jogo.localeCompare(y.jogo));
+        const pts = b.itens.reduce((t, p) => t + (p.pts || 0), 0);
+        const temPts = b.itens.some(p => p.pts != null);
+        let corpo = "", rodAnt = null;
+        b.itens.forEach(p => {
+          if (!rod && p.rodada !== rodAnt) {
+            corpo += `<div class="rodTit">Rodada ${p.rodada}</div>`;
+            rodAnt = p.rodada;
+          }
+          corpo += `<div class="linha" style="padding:8px 0">
+            <span>${textoSeguro(p.jogo)}</span>
+            <span><strong>${p.gm} × ${p.gv}</strong>${p.pts != null
+              ? ` <span class="muted">· ${p.pts} pt${p.pts === 1 ? "" : "s"}</span>` : ""}</span>
+          </div>`;
+        });
+        const aberto = histAbertos[b.id] || (busca && blocos.length <= 3);
+        return `<details class="bloco" data-u="${textoSeguro(b.id)}" ${aberto ? "open" : ""}>
+          <summary><span>${textoSeguro(b.nome)}</span>
+            <span class="muted">${b.itens.length} palpite${b.itens.length === 1 ? "" : "s"}${temPts ? " · " + pts + " pts" : ""}</span></summary>
+          <div class="corpo">${corpo}</div>
+        </details>`;
+      }).join("");
+    }
+
+    $("listaPalpitesAdmin").addEventListener("toggle", e => {
+      const el = e.target;
+      if (el && el.dataset && el.dataset.u) histAbertos[el.dataset.u] = el.open;
+    }, true);
+    $("histRodada").addEventListener("change", desenharPalpitesAdmin);
+    $("histBusca").addEventListener("input", desenharPalpitesAdmin);
+
+    /* ===== Excluir participante (conta já desativada) ===== */
+    $("listaUsuarios").addEventListener("click", async e => {
+      const b = e.target.closest('[data-acao="excluir"]');
+      if (!b) return;
+      const u = (estado.dados.usuarios || []).find(x => String(x.id) === String(b.dataset.id));
+      if (!u) return;
+      const digitado = prompt(
+        "EXCLUIR " + u.nome + " de vez?\n" +
+        "A conta e TODOS os palpites dela serão apagados. Não dá para desfazer.\n\n" +
+        "Para confirmar, digite o nome exatamente:");
+      if (digitado === null) return;
+      if (norm(digitado) !== norm(u.nome)) {
+        mostrarMensagem("O nome digitado não confere. Nada foi excluído.", "erro");
+        return;
+      }
+      try {
+        const r = await executar("excluirUsuario", estado.token, u.id);
+        await atualizarDadosSemBloqueio();
+        mostrarMensagem(u.nome + " excluído (" + (r.palpitesApagados || 0) + " palpite(s) apagado(s)).", "ok");
+      } catch (erro) {}
+    });
+
+    /* ===== Link de convite (admin) ===== */
+    function urlConvite(cod) {
+      return location.origin + location.pathname + "?c=" + encodeURIComponent(cod);
+    }
+
+    $("btnCopiarConvite").addEventListener("click", async () => {
+      const t = $("linkConvite").value;
+      try {
+        await navigator.clipboard.writeText(t);
+        mostrarMensagem("Link de convite copiado.", "ok");
+      } catch (e) {
+        prompt("Copie o link abaixo:", t);
+      }
+    });
+
+    $("btnConviteZap").addEventListener("click", () => {
+      const cod = estado.dados && estado.dados.config && estado.dados.config.convite;
+      if (!cod) return;
+      const msg = "⚽ Bolão FC — Brasileirão 2026\nEntre pelo link e crie sua conta:\n" + urlConvite(cod);
+      window.open("https://wa.me/?text=" + encodeURIComponent(msg), "_blank");
+    });
 
     /* ===== Horário do jogo e chips de rodada ===== */
     function quando(j) {
@@ -2000,6 +2428,7 @@ vitoria|Vitória|#e31b23|#140b0c|#ffffff`.split("\n").forEach(l => {
         await carregar();
       } else {
         alternarLogin(true);
+        if (CONVITE_URL) abrirCadastro();
       }
     })();
   </script>
