@@ -404,6 +404,13 @@
     body.modoPrint #painelRanking { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 16px; background: var(--painel); }
     body.modoPrint .noPrint { display: none !important; }
     body.modoPrint .sairPrint { visibility: visible !important; display: block !important; position: fixed; right: 12px; top: 12px; z-index: 999; }
+    .sharePrint { display: none; }
+    body.modoPrint .sharePrint, body.modoPrint .sharePrint * { visibility: visible !important; }
+    body.modoPrint #painelRanking { padding-bottom: 96px; }
+    body.modoPrint .sharePrint { display: flex !important; position: fixed; left: 0; right: 0; bottom: 0; z-index: 999;
+      gap: 8px; justify-content: center; padding: 12px 14px calc(12px + env(safe-area-inset-bottom, 0px));
+      background: var(--painel); border-top: 1px solid var(--borda); }
+    body.modoPrint .sharePrint button { flex: 1; max-width: 360px; padding: 14px; font-size: 16px; }
   </style>
 </head>
 
@@ -809,6 +816,13 @@
         </div>
 
         <div class="card">
+          <h3>Acessos ao app</h3>
+          <p class="muted">Quantas vezes entraram e quando (só o login, com nome e data).</p>
+          <button type="button" id="btnVerAcessos" class="secundario">Ver acessos</button>
+          <div id="boxAcessos" class="oculto" style="margin-top:12px"></div>
+        </div>
+
+        <div class="card">
           <h3>Palpites registrados</h3>
           <button type="button" id="btnVerPalpites" class="secundario">📋 Ver palpites de um participante</button>
           <div id="boxVerPalpites" class="oculto" style="margin-top:12px">
@@ -853,6 +867,10 @@
   </div>
 
   <button id="btnSairPrint" class="sairPrint pequeno">✕ Sair do print</button>
+  <div class="sharePrint">
+    <button id="btnCompartilharPrint" type="button" disabled>Preparando imagem...</button>
+    <button id="btnBaixarPrint" type="button" class="secundario" disabled>⬇️ Baixar</button>
+  </div>
 
   <div id="toast"><span class="check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span id="toastTexto"></span></div>
 
@@ -2283,12 +2301,89 @@ vitoria|Vitória|#e31b23|#140b0c|#ffffff`.split("\n").forEach(l => {
     });
 
     /* ===== Modo print do ranking ===== */
-    $("btnModoPrint").addEventListener("click", () => {
+    let imgPrint = null;
+
+    function carregarHtml2canvas() {
+      if (window.html2canvas) return Promise.resolve();
+      return new Promise((ok, no) => {
+        const sc = document.createElement("script");
+        sc.src = "https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js";
+        sc.onload = ok;
+        sc.onerror = () => no(new Error("gerador"));
+        document.head.appendChild(sc);
+      });
+    }
+
+    async function gerarImagemPrint() {
+      await carregarHtml2canvas();
+      const el = $("painelRanking");
+      const bg = getComputedStyle(el).backgroundColor || "#ffffff";
+      const canvas = await html2canvas(el, { scale: 2, backgroundColor: bg });
+      return new Promise(r => canvas.toBlob(r, "image/png"));
+    }
+
+    // Abre direto na tela de print e já prepara a imagem do ranking.
+    $("btnModoPrint").addEventListener("click", async () => {
       window.scrollTo(0, 0);
+      imgPrint = null;
       document.body.classList.add("modoPrint");
+      const bComp = $("btnCompartilharPrint"), bBaixar = $("btnBaixarPrint");
+      bComp.disabled = true; bBaixar.disabled = true;
+      bComp.textContent = "Preparando imagem...";
+      try {
+        imgPrint = await gerarImagemPrint();
+        bComp.textContent = "📤 Compartilhar";
+        bComp.disabled = false; bBaixar.disabled = false;
+      } catch (erro) {
+        bComp.textContent = "Imagem indisponível";
+        mostrarMensagem("Não consegui gerar a imagem. Verifique a internet e tente de novo.", "erro");
+      }
     });
+
+    $("btnCompartilharPrint").addEventListener("click", async () => {
+      if (!imgPrint) return;
+      const arquivo = new File([imgPrint], "ranking-bolao.png", { type: "image/png" });
+      if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+        try {
+          await navigator.share({ files: [arquivo], title: "Ranking Bolão FC" });
+          return;
+        } catch (e) { return; }   // usuário cancelou
+      }
+      baixarImagemPrint();
+    });
+
+    function baixarImagemPrint() {
+      if (!imgPrint) return;
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(imgPrint);
+      a.download = "ranking-bolao.png";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+
+    $("btnBaixarPrint").addEventListener("click", baixarImagemPrint);
+
     $("btnSairPrint").addEventListener("click", () => {
       document.body.classList.remove("modoPrint");
+      imgPrint = null;
+    });
+
+    /* ===== Acessos ao app (admin) ===== */
+    $("btnVerAcessos").addEventListener("click", async () => {
+      const box = $("boxAcessos");
+      box.classList.remove("oculto");
+      box.innerHTML = '<div class="muted">Carregando...</div>';
+      try {
+        const r = await executar("listarAcessos", estado.token);
+        box.innerHTML = `<div style="font-weight:800">${r.total} entrada(s) no total</div>` +
+          (r.lista.length
+            ? r.lista.map(a => `<div class="linha" style="padding:6px 0">
+                <span>${textoSeguro(a.nome)}</span><span class="muted">${textoSeguro(a.data)}</span></div>`).join("")
+            : '<div class="vazio">Nenhum acesso registrado ainda.</div>');
+      } catch (erro) {
+        box.innerHTML = '<div class="vazio">Não foi possível carregar os acessos.</div>';
+      }
     });
 
     /* ===== Excluir participante (conta já desativada) ===== */
