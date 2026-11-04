@@ -4,6 +4,7 @@
   <base target="_top">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b1020">
   <title>Bolão Brasileirão</title>
 
   <style>
@@ -17,7 +18,60 @@
       --azul: #4c8dff;
       --vermelho: #ff647c;
       --borda: #2d3b55;
+      --campo: #0d1628;
+      --on: #07160f;
+      --topo: linear-gradient(130deg, #14233b, #12372d);
     }
+
+    [data-tema="claro"] .tag { background: #e2e8f3; }
+    [data-tema="claro"] .aviso { background: #e6eefb; }
+    [data-tema="claro"] .aviso.erro { background: #fde2e7; color: #6b1020; }
+    [data-tema="claro"] .aviso.ok { background: #d9f5e8; color: #0b4a2c; }
+
+    /* sem setinhas nos campos numéricos */
+    input[type=number] { -moz-appearance: textfield; appearance: textfield; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
+    /* chips (rodadas, dias, horários) */
+    .chips { display: flex; gap: 8px; overflow-x: auto; padding: 2px 0 10px; scrollbar-width: none; }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip {
+      flex: none; white-space: nowrap; padding: 9px 14px; border-radius: 999px;
+      background: var(--painel2); color: var(--texto);
+      border: 1px solid var(--borda); font-size: 13px; transition: .15s;
+    }
+    .chip.ativa { background: var(--verde); color: var(--on); border-color: transparent; transform: scale(1.05); }
+
+    /* menu da administração */
+    .tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 16px; }
+    .tile {
+      display: grid; gap: 4px; text-align: left; padding: 16px;
+      background: var(--painel); color: var(--texto);
+      border: 1px solid var(--borda); border-radius: 15px; font-size: 26px;
+    }
+    .tile b { font-size: 15px; }
+    .tile small { color: var(--suave); font-size: 12px; font-weight: 400; }
+    .tile:active { transform: scale(.97); }
+
+    /* aviso de sucesso animado */
+    #toast {
+      position: fixed; left: 50%; bottom: 28px; z-index: 50;
+      transform: translate(-50%, 40px); opacity: 0; pointer-events: none;
+      display: flex; align-items: center; gap: 12px; max-width: 90vw;
+      padding: 12px 18px; border-radius: 14px; white-space: pre-wrap;
+      background: var(--painel2); color: var(--texto); border: 1px solid var(--verde);
+      box-shadow: 0 10px 30px rgba(0,0,0,.35); transition: .3s;
+    }
+    #toast.mostrar { opacity: 1; transform: translate(-50%, 0); }
+    .check { flex: none; width: 28px; height: 28px; border-radius: 50%; background: var(--verde); display: grid; place-items: center; }
+    .check svg { width: 16px; height: 16px; fill: none; stroke: var(--on); stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; stroke-dasharray: 24; stroke-dashoffset: 24; }
+    #toast.mostrar .check { animation: pop .4s ease; }
+    #toast.mostrar .check svg { animation: tracar .45s .15s ease forwards; }
+    @keyframes tracar { to { stroke-dashoffset: 0; } }
+    @keyframes pop { 0% { transform: scale(.3); } 70% { transform: scale(1.2); } 100% { transform: scale(1); } }
+    .jogo.salvoOk { animation: pulsar .9s ease; }
+    @keyframes pulsar { 0% { box-shadow: 0 0 0 0 var(--verde); } 100% { box-shadow: 0 0 0 16px transparent; } }
 
     * { box-sizing: border-box; }
 
@@ -38,7 +92,7 @@
       border-radius: 10px;
       padding: 12px 15px;
       background: var(--verde);
-      color: #07160f;
+      color: var(--on);
       font-weight: 800;
     }
 
@@ -54,7 +108,7 @@
       border: 1px solid var(--borda);
       border-radius: 9px;
       color: var(--texto);
-      background: #0d1628;
+      background: var(--campo);
       outline: none;
     }
 
@@ -77,7 +131,7 @@
 
     .topo {
       padding: 22px 16px;
-      background: linear-gradient(130deg, #14233b, #12372d);
+      background: var(--topo);
       border-bottom: 1px solid var(--borda);
     }
 
@@ -164,7 +218,7 @@
 
     .abaBotao.ativa {
       background: var(--verde);
-      color: #07160f;
+      color: var(--on);
     }
 
     .jogo {
@@ -248,6 +302,35 @@
     .verde { color: var(--verde); }
     .oculto { display: none !important; }
 
+    /* carregando: bola quicando e girando */
+    #carregandoBola {
+      position: fixed; inset: 0; z-index: 60; display: none; place-items: center;
+      background: rgba(5, 10, 20, .6); backdrop-filter: blur(2px);
+    }
+    #carregandoBola.ativo { display: grid; }
+    .bolaBox { text-align: center; }
+    .quica { animation: quicar .65s cubic-bezier(.35, 0, .65, 1) infinite alternate; }
+    .bola { display: block; width: 76px; height: 76px; animation: girar .9s linear infinite; }
+    .sombraBola {
+      width: 56px; height: 9px; margin: 8px auto 0; border-radius: 50%;
+      background: rgba(0, 0, 0, .5);
+      animation: sombra .65s cubic-bezier(.35, 0, .65, 1) infinite alternate;
+    }
+    .carregandoTxt { margin-top: 14px; color: #fff; font-weight: 700; letter-spacing: .3px; }
+    @keyframes girar { to { transform: rotate(360deg); } }
+    @keyframes quicar { from { transform: translateY(-34px); } to { transform: translateY(0); } }
+    @keyframes sombra { from { transform: scale(.5); opacity: .35; } to { transform: scale(1); opacity: .85; } }
+
+    /* contato por WhatsApp */
+    .whats {
+      display: flex; align-items: center; gap: 14px; margin-top: 14px; padding: 14px 16px;
+      border-radius: 15px; background: #25d366; color: #06210f;
+      text-decoration: none; font-weight: 800;
+    }
+    .whats .ico { font-size: 28px; line-height: 1; }
+    .whats small { display: block; font-weight: 500; opacity: .85; }
+    .whats:active { transform: scale(.98); }
+
     .aviso {
       padding: 12px;
       border-radius: 10px;
@@ -329,6 +412,11 @@
         </button>
       </div>
 
+      <a id="btnWhats" class="whats oculto" target="_blank" rel="noopener">
+        <span class="ico">💬</span>
+        <span>Precisa de ajuda?<small>Fale com a gente no WhatsApp</small></span>
+      </a>
+
       <!-- CADASTRO COM CONVITE -->
       <div id="painelCadastro" class="card oculto">
         <h2>Criar minha conta</h2>
@@ -378,10 +466,17 @@
         </div>
       </div>
 
+      <div id="muralAvisos"></div>
+      <div id="barraCamp" class="card oculto">
+        <label style="margin:0">Campeonato
+          <select id="seletorCamp"></select>
+        </label>
+      </div>
+
       <nav class="abas">
         <button class="abaBotao ativa" data-aba="jogos">⚽ Jogos</button>
         <button class="abaBotao" data-aba="ranking">🏆 Ranking</button>
-        <button class="abaBotao" data-aba="meus">📝 Meus palpites</button>
+        <button class="abaBotao" id="abaMeus" data-aba="meus">📝 Meus palpites</button>
         <button class="abaBotao" data-aba="conta">🔐 Minha conta</button>
         <button class="abaBotao oculto" id="abaAdmin" data-aba="admin">⚙️ Administração</button>
       </nav>
@@ -393,11 +488,10 @@
             Você ganha 5 pontos pelo placar exato e 3 por acertar vitória,
             empate ou derrota. O palpite fecha no horário do jogo.
           </p>
-          <label>Filtrar rodada
-            <select id="filtroRodada">
-              <option value="">Todas as rodadas</option>
-            </select>
-          </label>
+          <div id="chipsRodada" class="chips"></div>
+          <select id="filtroRodada" class="oculto">
+            <option value="">Todas as rodadas</option>
+          </select>
           <div id="listaJogos"></div>
         </div>
       </section>
@@ -406,6 +500,15 @@
         <div class="card">
           <h2>🏆 Classificação geral</h2>
           <p class="muted">Desempate: maior número de placares exatos.</p>
+          <label>Campeonato
+            <select id="filtroRankingCamp"></select>
+          </label>
+          <label>Classificação
+            <select id="filtroRankingRodada"><option value="">Geral</option></select>
+          </label>
+          <div class="botoes" style="margin:0 0 8px">
+            <button id="btnCopiarRanking" class="secundario pequeno">📋 Copiar ranking</button>
+          </div>
           <div id="listaRanking"></div>
         </div>
       </section>
@@ -418,6 +521,11 @@
       </section>
 
       <section id="painelConta" class="painelAba oculto">
+        <div class="card">
+          <h2>🎨 Meu tema</h2>
+          <p class="muted">Escolha as cores do seu time do coração.</p>
+          <select id="temaSelect"></select>
+        </div>
         <div class="card">
           <h2>Alterar PIN</h2>
           <form id="formPin">
@@ -442,8 +550,23 @@
         <div class="card">
           <h2>⚙️ Administração</h2>
           <p class="muted">
-            Cadastre times e partidas, registre resultados e gerencie participantes.
+            Escolha uma opção.
           </p>
+        </div>
+
+        <div id="admMenu" class="tiles">
+          <button class="tile" data-adm="jogos">⚽<b>Jogos</b><small>cadastrar, editar, excluir</small></button>
+          <button class="tile" data-adm="resultados">🏁<b>Resultados</b><small>lançar placar</small></button>
+          <button class="tile" data-adm="times">🛡️<b>Times</b><small>adicionar e editar</small></button>
+          <button class="tile" data-adm="participantes">👥<b>Participantes</b><small>contas e palpites</small></button>
+          <button class="tile" data-adm="pagamentos">💰<b>Pagamentos</b><small>controle da entrada</small></button>
+          <button class="tile" data-adm="avisos">📢<b>Avisos</b><small>mural para todos</small></button>
+          <button class="tile" data-adm="config">⚙️<b>Configurações</b><small>campeonatos e prazo</small></button>
+        </div>
+
+        <div id="admVoltar" class="oculto" style="margin-bottom:14px;display:flex;align-items:center;gap:12px">
+          <button class="secundario pequeno" id="btnAdmVoltar">← Menu</button>
+          <strong id="admTitulo"></strong>
         </div>
 
         <div class="grade">
@@ -466,6 +589,9 @@
           <div class="card">
             <h3>Cadastrar jogo</h3>
             <form id="formJogo">
+              <label>Campeonato
+                <select id="jogoCamp" required></select>
+              </label>
               <label>Rodada
                 <input id="jogoRodada" type="number" min="1" required>
               </label>
@@ -475,12 +601,116 @@
               <label>Visitante
                 <select id="jogoVisitante" required></select>
               </label>
-              <label>Data e hora (horário de Brasília)
-                <input id="jogoData" type="datetime-local" required>
-              </label>
+              <div style="margin:12px 0"><div class="muted" style="margin-bottom:6px;font-size:13px">Data e hora (horário de Brasília)</div><input id="jogoData" type="hidden"><div class="dtp" data-alvo="jogoData"></div></div>
               <button type="submit">Cadastrar jogo</button>
             </form>
           </div>
+        </div>
+
+        <div class="card">
+          <h3>Campeonatos e configurações</h3>
+          <form id="formCamp">
+            <label>Novo campeonato
+              <input id="campNome" placeholder="Ex.: Copa do Brasil 2026" required>
+            </label>
+            <button type="submit">Criar campeonato</button>
+          </form>
+          <form id="formConfig" style="margin-top:18px">
+            <label>Fechar palpites quantos minutos antes do jogo?
+              <input id="cfgPrazo" type="number" min="0" max="180" required>
+            </label>
+            <label>Valor da entrada (R$)
+              <input id="cfgValor" type="number" min="0" step="0.01" required>
+            </label>
+            <button type="submit">Salvar configurações</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Editar ou excluir partida</h3>
+          <form id="formEditarJogo">
+            <label>Partida
+              <select id="edJogoSel" required></select>
+            </label>
+            <label>Campeonato
+              <select id="edCamp"></select>
+            </label>
+            <label>Rodada
+              <input id="edRodada" type="number" min="1" required>
+            </label>
+            <label>Mandante
+              <select id="edMandante" required></select>
+            </label>
+            <label>Visitante
+              <select id="edVisitante" required></select>
+            </label>
+            <div style="margin:12px 0"><div class="muted" style="margin-bottom:6px;font-size:13px">Data e hora (horário de Brasília)</div><input id="edData" type="hidden"><div class="dtp" data-alvo="edData"></div></div>
+            <div class="botoes">
+              <button type="submit">Salvar alterações</button>
+              <button type="button" id="btnReabrirJogo" class="secundario">Reabrir (desfazer resultado)</button>
+              <button type="button" id="btnExcluirJogo" class="perigo">Excluir partida</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Mural de avisos</h3>
+          <form id="formAviso">
+            <label>Novo aviso
+              <textarea id="avisoTexto" rows="3" maxlength="500" required
+                style="width:100%;padding:12px;border:1px solid var(--borda);border-radius:9px;color:var(--texto);background:var(--campo);font:inherit"></textarea>
+            </label>
+            <button type="submit">Publicar aviso</button>
+          </form>
+          <div id="listaAvisosAdmin" style="margin-top:12px"></div>
+        </div>
+
+        <div class="card">
+          <h3>Pagamentos</h3>
+          <div id="resumoPagamento" class="aviso"></div>
+          <form id="formPagLote">
+            <label>Cole os nomes de quem pagou (um por linha)
+              <textarea id="pagLoteTexto" rows="4" required
+                style="width:100%;padding:12px;border:1px solid var(--borda);border-radius:9px;color:var(--texto);background:var(--campo);font:inherit"></textarea>
+            </label>
+            <button type="submit">Marcar como pagos</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Editar time</h3>
+          <form id="formEditarTime">
+            <label>Time
+              <select id="editTimeId" required></select>
+            </label>
+            <label>Nome
+              <input id="editTimeNome" required>
+            </label>
+            <label>Sigla
+              <input id="editTimeSigla" maxlength="5" required>
+            </label>
+            <label>URL do escudo
+              <input id="editTimeEscudo" type="url" placeholder="https://...">
+            </label>
+            <img id="editTimePreview" class="escudo oculto" alt="">
+            <button type="submit">Salvar alterações</button>
+          </form>
+        </div>
+
+        <div class="card">
+          <h3>Cadastrar jogos em lote</h3>
+          <p class="muted">Um jogo por linha, no formato:<br>
+            <strong>rodada;MANDANTE;VISITANTE;dd/MM/aaaa HH:mm</strong><br>
+            Exemplo: 12;FLA;PAL;15/11/2026 16:00<br>
+            Use a sigla ou o nome do time.</p>
+          <label>Campeonato
+            <select id="loteCamp"></select>
+          </label>
+          <form id="formLote">
+            <textarea id="loteTexto" rows="6" required
+              style="width:100%;padding:12px;border:1px solid var(--borda);border-radius:9px;color:var(--texto);background:var(--campo);font:inherit"></textarea>
+            <div class="botoes"><button type="submit">Cadastrar jogos</button></div>
+          </form>
         </div>
 
         <div class="card">
@@ -515,6 +745,12 @@
         </div>
 
         <div class="card">
+          <h3>Quem ainda não palpitou</h3>
+          <p class="muted">Participantes com jogos abertos sem palpite.</p>
+          <div id="listaPendentes"></div>
+        </div>
+
+        <div class="card">
           <h3>Participantes</h3>
           <p class="muted">Os participantes criam as próprias contas usando o convite.</p>
           <div id="listaUsuarios"></div>
@@ -527,6 +763,28 @@
       </section>
     </section>
   </main>
+
+  <div id="carregandoBola">
+    <div class="bolaBox">
+      <div class="quica">
+        <svg class="bola" viewBox="0 0 64 64" aria-hidden="true">
+          <circle cx="32" cy="32" r="30" fill="#fafafa" stroke="#141c30" stroke-width="3"/>
+          <g stroke="#141c30" stroke-width="2.5" stroke-linecap="round">
+            <line x1="32" y1="19" x2="32" y2="3"/>
+            <line x1="44.4" y1="28" x2="59.6" y2="23"/>
+            <line x1="39.7" y1="42.6" x2="49" y2="55.5"/>
+            <line x1="24.3" y1="42.6" x2="15" y2="55.5"/>
+            <line x1="19.6" y1="28" x2="4.4" y2="23"/>
+          </g>
+          <polygon points="32,19 44.4,28 39.7,42.6 24.3,42.6 19.6,28" fill="#141c30"/>
+        </svg>
+      </div>
+      <div class="sombraBola"></div>
+      <div class="carregandoTxt">Carregando...</div>
+    </div>
+  </div>
+
+  <div id="toast"><span class="check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span id="toastTexto"></span></div>
 
   <script>
     "use strict";
@@ -542,12 +800,26 @@
       token: guardar.ler(),
       usuario: null,
       dados: null,
-      carregando: false
+      carregando: false,
+      camp: "",
+      campRank: ""
     };
 
     const $ = id => document.getElementById(id);
 
+    let toastTimer;
+    function toast(texto) {
+      const t = $("toast");
+      $("toastTexto").textContent = texto;
+      t.classList.remove("mostrar");
+      void t.offsetWidth;
+      t.classList.add("mostrar");
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove("mostrar"), 2600);
+    }
+
     function mostrarMensagem(texto, tipo) {
+      if (tipo === "ok") { limparMensagem(); toast(texto); return; }
       const el = $("mensagem");
       el.textContent = texto;
       el.className = "aviso " + (tipo || "");
@@ -563,7 +835,26 @@
     // (necessário só quando esta página é hospedada fora do Google).
     const API_URL = "https://script.google.com/macros/s/AKfycbyr2erKiDR70B5QDlmdS2PQ5KQt4g_hFqHhnPdA6ySNxZWewrFkH8dhF4kEZbhXUzl9XA/exec";
 
+    let pendentes = 0, overlayTimer = null, semOverlay = false;
+
     function chamarServidor(funcao, ...args) {
+      const mostrar = !semOverlay && funcao !== "definirTema";
+      if (mostrar) {
+        pendentes++;
+        if (pendentes === 1) {
+          overlayTimer = setTimeout(
+            () => $("carregandoBola").classList.add("ativo"), 250);
+        }
+      }
+      return chamarServidorBruto(funcao, ...args).finally(() => {
+        if (mostrar && --pendentes === 0) {
+          clearTimeout(overlayTimer);
+          $("carregandoBola").classList.remove("ativo");
+        }
+      });
+    }
+
+    function chamarServidorBruto(funcao, ...args) {
       // Dentro do Apps Script: usa o método nativo.
       if (typeof google !== "undefined" && google.script && google.script.run) {
         return new Promise((resolve, reject) => {
@@ -682,6 +973,7 @@
     }
 
     function desenharAplicativo() {
+      ultimoCarregamento = Date.now();
       const d = estado.dados;
       if (!d) return;
 
@@ -690,9 +982,13 @@
       $("perfilUsuario").textContent =
         d.usuario.perfil === "ADMIN" ? "ADMINISTRADOR" : "PARTICIPANTE";
 
+      $("abaMeus").classList.toggle("oculto", d.usuario.perfil === "ADMIN");
       $("abaAdmin").classList.toggle("oculto",
         d.usuario.perfil !== "ADMIN");
 
+      prepararCamp();
+      desenharMural();
+      aplicarTemaUsuario();
       desenharJogos();
       desenharRanking();
       desenharMeusPalpites();
@@ -706,10 +1002,23 @@
         referrerpolicy="no-referrer" onerror="this.style.display='none'">`;
     }
 
+    function palpitesDoJogoHtml(j) {
+      const lista = (estado.dados.palpitesJogos || [])
+        .filter(p => String(p.jogoId) === String(j.id));
+      if (!lista.length) return "";
+
+      return `<details style="margin-top:10px">
+        <summary class="muted" style="cursor:pointer">
+          Ver palpites da galera (${lista.length})</summary>` +
+        lista.map(p => `<div class="linha"><span>${textoSeguro(p.nome)}</span>
+          <strong>${p.golsMandante} × ${p.golsVisitante}</strong></div>`).join("") +
+        `</details>`;
+    }
+
     function desenharJogos() {
       const d = estado.dados;
       const filtro = $("filtroRodada").value;
-      const rodadas = [...new Set(d.jogos.map(j => j.rodada))]
+      const rodadas = [...new Set(jogosAtuais().map(j => j.rodada))]
         .sort((a, b) => a - b);
 
       const filtroAtual = filtro;
@@ -720,11 +1029,21 @@
         ).join("");
       $("filtroRodada").value = filtroAtual;
 
+      // abre já na primeira rodada que ainda tem jogo aberto
+      if (!estado.rodadaDefinida && rodadas.length) {
+        estado.rodadaDefinida = true;
+        const aberta = jogosAtuais()
+          .filter(j => j.status !== "ENCERRADO" && new Date() < new Date(j.limite))
+          .map(j => j.rodada).sort((a, b) => a - b)[0];
+        $("filtroRodada").value = String(aberta || rodadas[rodadas.length - 1]);
+      }
+      desenharChipsRodada(rodadas);
+
       const meus = d.meusPalpites || [];
-      let jogos = d.jogos.slice().sort((a, b) =>
+      let jogos = jogosAtuais().slice().sort((a, b) =>
         new Date(a.dataHora) - new Date(b.dataHora));
 
-      if (filtro) jogos = jogos.filter(j => String(j.rodada) === filtro);
+      if ($("filtroRodada").value) jogos = jogos.filter(j => String(j.rodada) === $("filtroRodada").value);
 
       if (!jogos.length) {
         $("listaJogos").innerHTML =
@@ -735,16 +1054,17 @@
       $("listaJogos").innerHTML = jogos.map(j => {
         const p = meus.find(x => String(x.jogoId) === String(j.id));
         const fechado = j.status === "ENCERRADO" ||
-          new Date() >= new Date(j.dataHora);
+          new Date() >= new Date(j.limite);
         const admin = d.usuario.perfil === "ADMIN";
         const resultado = j.status === "ENCERRADO";
-        const podePalpitar = !fechado;
+        const podePalpitar = !fechado && !admin;
+        const q = quando(j);
 
         return `
-          <article class="jogo">
+          <article class="jogo" id="jogo_${j.id}">
             <div class="jogoTopo">
               <span>Rodada ${j.rodada}</span>
-              <span>${textoSeguro(j.dataExibicao)}</span>
+              <span>📅 ${q.dia} · ⏰ <strong style="color:var(--texto);font-size:15px">${q.hora}</strong></span>
             </div>
             <div class="confronto">
               <div class="time">
@@ -773,13 +1093,14 @@
             </div>
             <div class="linha">
               <span class="tag">${resultado ? "Encerrado" :
-                fechado ? "Palpites fechados" : "Palpites abertos"}</span>
+                fechado ? "Palpites fechados" : admin ? "Administrador não palpita" : "Palpites até " + textoSeguro(j.limiteExibicao)}</span>
               ${podePalpitar
                 ? `<button class="pequeno" onclick="salvarPalpiteTela('${j.id}')">
                     ${p ? "Atualizar palpite" : "Salvar palpite"}
                    </button>`
                 : ""}
             </div>
+            ${palpitesDoJogoHtml(j)}
           </article>`;
       }).join("");
     }
@@ -796,13 +1117,91 @@
       try {
         await executar("salvarPalpite", estado.token, jogoId,
           Number(m.value), Number(v.value));
-        await atualizarDadosSemBloqueio();
+
+        // atualiza só este palpite na tela, sem recarregar tudo
+        const lista = estado.dados.meusPalpites || (estado.dados.meusPalpites = []);
+        const existente = lista.find(p => String(p.jogoId) === String(jogoId));
+        if (existente) {
+          existente.golsMandante = Number(m.value);
+          existente.golsVisitante = Number(v.value);
+        } else {
+          lista.push({ jogoId: jogoId, golsMandante: Number(m.value),
+            golsVisitante: Number(v.value) });
+        }
+        desenharJogos();
+        desenharMeusPalpites();
         mostrarMensagem("Palpite salvo com sucesso!", "ok");
+        const card = $("jogo_" + jogoId);
+        if (card) {
+          card.classList.add("salvoOk");
+          setTimeout(() => card.classList.remove("salvoOk"), 1000);
+        }
       } catch (erro) {}
     }
 
+    function pontosCliente(p, j) {
+      const pm = Number(p.golsMandante), pv = Number(p.golsVisitante);
+      const rm = Number(j.golsMandante), rv = Number(j.golsVisitante);
+      if (pm === rm && pv === rv) return 5;
+      return Math.sign(pm - pv) === Math.sign(rm - rv) ? 3 : 0;
+    }
+
+    function rankingRodada(r, camp) {
+      const d = estado.dados;
+      const lista = rankingBase(camp).map(x => ({
+        usuarioId: x.usuarioId, nome: x.nome,
+        pontos: 0, exatos: 0, palpitesFeitos: 0
+      }));
+
+      jogosAtuais(camp).filter(j => j.rodada === r && j.status === "ENCERRADO")
+        .forEach(j => {
+          (d.palpitesJogos || [])
+            .filter(p => String(p.jogoId) === String(j.id))
+            .forEach(p => {
+              const u = lista.find(x => String(x.usuarioId) === String(p.usuarioId));
+              if (!u) return;
+              const pts = pontosCliente(p, j);
+              u.pontos += pts;
+              u.palpitesFeitos++;
+              if (pts === 5) u.exatos++;
+            });
+        });
+
+      lista.sort((a, b) => b.pontos - a.pontos || b.exatos - a.exatos ||
+        a.nome.localeCompare(b.nome));
+      lista.forEach((x, i) => x.posicao = i + 1);
+      return lista;
+    }
+
     function desenharRanking() {
-      const ranking = estado.dados.ranking || [];
+      const d = estado.dados;
+
+      const camps = d.campeonatos || [];
+      if (!camps.some(c => String(c.id) === String(estado.campRank))) {
+        estado.campRank = estado.camp;
+      }
+      const selCamp = $("filtroRankingCamp");
+      selCamp.innerHTML = camps.map(c =>
+        `<option value="${textoSeguro(c.id)}">${textoSeguro(c.nome)}</option>`).join("");
+      selCamp.value = estado.campRank;
+      const camp = estado.campRank;
+
+      const sel = $("filtroRankingRodada");
+      const atual = sel.value;
+      const rodadasEnc = [...new Set(jogosAtuais(camp)
+        .filter(j => j.status === "ENCERRADO").map(j => j.rodada))]
+        .sort((a, b) => a - b);
+      sel.innerHTML = '<option value="">Geral</option>' +
+        rodadasEnc.map(r => `<option value="${r}">Rodada ${r}</option>`).join("");
+      sel.value = atual;
+
+      const ranking = sel.value
+        ? rankingRodada(Number(sel.value), camp)
+        : rankingBase(camp);
+
+      estado.rankingAtual = ranking;
+      estado.rankingTitulo = nomeCamp(camp) +
+        (sel.value ? " — Rodada " + sel.value : " — Classificação geral");
 
       if (!ranking.length) {
         $("listaRanking").innerHTML =
@@ -892,29 +1291,70 @@
 
       preencherSelect("jogoMandante", times, "Escolha o mandante");
       preencherSelect("jogoVisitante", times, "Escolha o visitante");
+      preencherSelect("editTimeId", times, "Escolha o time");
+
+      const camps = (d.campeonatos || []).map(c => ({ value: c.id, texto: c.nome }));
+      ["jogoCamp", "loteCamp", "edCamp"].forEach(id => {
+        preencherSelect(id, camps, "Campeonato");
+        if (!$(id).value) $(id).value = estado.camp;
+      });
+      preencherSelect("edMandante", times, "Mandante");
+      preencherSelect("edVisitante", times, "Visitante");
+
+      if (document.activeElement !== $("cfgPrazo")) $("cfgPrazo").value = d.config.prazoMin;
+      if (document.activeElement !== $("cfgValor")) $("cfgValor").value = d.config.valorEntrada;
+
+      $("listaAvisosAdmin").innerHTML = (d.avisos || []).map(a => `
+        <div class="linha">
+          <div><div>${textoSeguro(a.texto)}</div>
+            <div class="muted">${textoSeguro(a.data)}</div></div>
+          <button class="perigo pequeno" onclick="apagarAviso('${a.id}')">Apagar</button>
+        </div>`).join("") || '<div class="vazio">Nenhum aviso publicado.</div>';
+
+      const part = d.usuarios.filter(u => u.perfil !== "ADMIN" && u.ativo);
+      const pagos = part.filter(u => u.pagou);
+      const total = pagos.reduce((s, u) => s + Number(u.valorPago || 0), 0);
+      $("resumoPagamento").textContent =
+        `${pagos.length} de ${part.length} pagaram · Arrecadado: R$ ${total.toFixed(2).replace(".", ",")}` +
+        (pagos.length < part.length ? "\nFalta: " + part.filter(u => !u.pagou).map(u => u.nome).join(", ") : "");
 
       const jogos = d.jogos.map(j => ({
         value: j.id,
-        texto: `R${j.rodada}: ${j.mandante} x ${j.visitante} (${j.dataExibicao})`
+        texto: `${nomeCamp(j.campeonatoId)} · R${j.rodada}: ${j.mandante} x ${j.visitante} (${j.dataExibicao})`
       }));
 
       preencherSelect("resultadoJogo", jogos, "Escolha a partida");
+      preencherSelect("edJogoSel", jogos, "Escolha a partida");
       preencherSelect("horarioJogo", jogos.filter(j => {
         const jogo = d.jogos.find(x => String(x.id) === String(j.value));
         return jogo && jogo.status !== "ENCERRADO";
       }), "Escolha a partida");
 
+      $("listaPendentes").innerHTML = (d.pendentes || []).map(p => `
+        <div class="linha">
+          <strong>${textoSeguro(p.nome)}</strong>
+          <span class="muted">faltam ${p.faltam} jogo(s)</span>
+        </div>`).join("") ||
+        '<div class="vazio">Todo mundo está em dia. 🎉</div>';
+
       $("listaUsuarios").innerHTML = d.usuarios.map(u => `
         <div class="linha">
           <div>
             <strong>${textoSeguro(u.nome)}</strong>
-            <div class="muted">${textoSeguro(u.perfil)} · ${u.ativo ? "Ativo" : "Inativo"}</div>
+            <div class="muted">${textoSeguro(u.perfil)} · ${u.ativo ? "Ativo" : "Inativo"}${u.perfil !== "ADMIN" ? (u.pagou ? " · 💰 Pago" : " · Pendente") : ""}</div>
           </div>
-          ${u.ativo && u.perfil !== "ADMIN"
-            ? `<button class="perigo pequeno"
-                onclick="desativarUsuario('${u.id}','${textoSeguro(u.nome)}')">
-                Desativar
-               </button>` : ""}
+          ${u.perfil !== "ADMIN"
+            ? `<div class="botoes" style="margin:0">
+                <button class="secundario pequeno"
+                  onclick="alternarPagamento('${u.id}', ${!u.pagou})">${u.pagou ? "Desmarcar pago" : "Marcar pago"}</button>
+                ${u.ativo
+                  ? `<button class="secundario pequeno"
+                      onclick="redefinirPinTela('${u.id}')">Redefinir PIN</button>
+                     <button class="perigo pequeno"
+                      onclick="desativarUsuario('${u.id}','${textoSeguro(u.nome)}')">Desativar</button>`
+                  : `<button class="pequeno"
+                      onclick="reativarUsuario('${u.id}')">Reativar</button>`}
+               </div>` : ""}
         </div>`).join("") || '<div class="vazio">Nenhum participante.</div>';
 
       $("listaPalpitesAdmin").innerHTML = d.palpitesAdmin.map(p => `
@@ -925,6 +1365,14 @@
           </div>
           <strong>${textoSeguro(p.placar)}</strong>
         </div>`).join("") || '<div class="vazio">Nenhum palpite registrado.</div>';
+    }
+
+    async function redefinirPinTela(id) {
+      const u = (estado.dados.usuarios || []).find(x => String(x.id) === String(id));
+      const pin = prompt("Novo PIN para " + (u ? u.nome : "o participante") +
+        " (4 a 8 números):");
+      if (pin === null) return;
+      await acao("redefinirPin", id, pin.trim());
     }
 
     async function desativarUsuario(id, nome) {
@@ -938,6 +1386,7 @@
 
       const painel = $("painel" + nome.charAt(0).toUpperCase() + nome.slice(1));
       if (painel) painel.classList.remove("oculto");
+      if (nome === "admin") abrirAdm("");
 
       document.querySelectorAll(".abaBotao").forEach(b =>
         b.classList.toggle("ativa", b.dataset.aba === nome));
@@ -1000,6 +1449,12 @@
     });
 
     $("filtroRodada").addEventListener("change", desenharJogos);
+    $("filtroRankingRodada").addEventListener("change", desenharRanking);
+    $("filtroRankingCamp").addEventListener("change", e => {
+      estado.campRank = e.target.value;
+      $("filtroRankingRodada").value = "";
+      desenharRanking();
+    });
 
     $("formPin").addEventListener("submit", async e => {
       e.preventDefault();
@@ -1014,6 +1469,50 @@
           $("pinAtual").value, $("pinNovo").value);
         $("formPin").reset();
         mostrarMensagem("PIN alterado com sucesso.", "ok");
+      } catch (erro) {}
+    });
+
+    function preencherEdicaoTime() {
+      const t = (estado.dados.times || []).find(x =>
+        String(x.id) === $("editTimeId").value);
+
+      $("editTimeNome").value = t ? t.nome : "";
+      $("editTimeSigla").value = t ? t.sigla : "";
+      $("editTimeEscudo").value = t ? (t.escudo || "") : "";
+
+      const prev = $("editTimePreview");
+      if (t && /^https?:\/\//i.test(t.escudo || "")) {
+        prev.src = t.escudo;
+        prev.classList.remove("oculto");
+      } else {
+        prev.classList.add("oculto");
+      }
+    }
+
+    $("editTimeId").addEventListener("change", preencherEdicaoTime);
+
+    $("formEditarTime").addEventListener("submit", async e => {
+      e.preventDefault();
+
+      try {
+        await executar("editarTime", estado.token,
+          $("editTimeId").value, $("editTimeNome").value,
+          $("editTimeSigla").value, $("editTimeEscudo").value);
+        await atualizarDadosSemBloqueio();
+        preencherEdicaoTime();
+        mostrarMensagem("Time atualizado.", "ok");
+      } catch (erro) {}
+    });
+
+    $("formLote").addEventListener("submit", async e => {
+      e.preventDefault();
+
+      try {
+        const r = await executar("cadastrarJogosLote", estado.token,
+          $("loteTexto").value, $("loteCamp").value);
+        $("formLote").reset();
+        await atualizarDadosSemBloqueio();
+        mostrarMensagem(r.total + " jogo(s) cadastrado(s).", "ok");
       } catch (erro) {}
     });
 
@@ -1042,7 +1541,8 @@
           $("jogoRodada").value,
           $("jogoMandante").value,
           $("jogoVisitante").value,
-          $("jogoData").value);
+          $("jogoData").value,
+          $("jogoCamp").value);
         $("formJogo").reset();
         await atualizarDadosSemBloqueio();
         mostrarMensagem("Jogo cadastrado.", "ok");
@@ -1074,6 +1574,426 @@
         mostrarMensagem("Horário atualizado.", "ok");
       } catch (erro) {}
     });
+
+
+    /* ===== Campeonatos ===== */
+    function nomeCamp(id) {
+      const c = (estado.dados.campeonatos || []).find(x => String(x.id) === String(id));
+      return c ? c.nome : "Campeonato";
+    }
+
+    function jogosAtuais(camp) {
+      camp = camp === undefined ? estado.camp : camp;
+      return estado.dados.jogos.filter(j => String(j.campeonatoId) === String(camp));
+    }
+
+    function rankingBase(camp) {
+      camp = camp === undefined ? estado.camp : camp;
+      const d = estado.dados;
+      return (d.rankings && d.rankings[camp]) || d.ranking || [];
+    }
+
+    function prepararCamp() {
+      const cs = estado.dados.campeonatos || [];
+      if (!cs.some(c => String(c.id) === String(estado.camp))) {
+        estado.camp = cs.length ? cs[0].id : "";
+      }
+      const sel = $("seletorCamp");
+      sel.innerHTML = cs.map(c =>
+        `<option value="${textoSeguro(c.id)}">${textoSeguro(c.nome)}</option>`).join("");
+      sel.value = estado.camp;
+      $("barraCamp").classList.toggle("oculto", cs.length < 2);
+      ultimaAtividade = Date.now();
+    }
+
+    $("seletorCamp").addEventListener("change", e => {
+      estado.camp = e.target.value;
+      estado.campRank = e.target.value;
+      $("filtroRankingRodada").value = "";
+      estado.rodadaDefinida = false;
+      $("filtroRodada").value = "";
+      desenharJogos();
+      desenharRanking();
+    });
+
+    /* ===== Mural ===== */
+    function desenharMural() {
+      $("muralAvisos").innerHTML = (estado.dados.avisos || []).map(a => `
+        <div class="aviso" style="border-left:4px solid var(--verde)">
+          📢 ${textoSeguro(a.texto)}
+          <div class="muted" style="margin-top:6px">${textoSeguro(a.data)}</div>
+        </div>`).join("");
+    }
+
+    /* ===== Temas ===== */
+    const TEMAS = {};
+    `escuro|Padrão escuro|#39d98a|#0b1020|#07160f
+claro|Claro|#16a34a|#f3f6fb|#ffffff
+athletico|Athletico-PR|#e2231a|#120a0a|#ffffff
+atleticomg|Atlético-MG|#f5f5f5|#0b0b0b|#111111
+bahia|Bahia|#2563eb|#0a1020|#ffffff
+botafogo|Botafogo|#f5f5f5|#0b0b0b|#111111
+bragantino|Bragantino|#e31b23|#0f0f12|#ffffff
+chapecoense|Chapecoense|#1faa59|#08140d|#ffffff
+corinthians|Corinthians|#f5f5f5|#0c0c0c|#111111
+coritiba|Coritiba|#22a559|#08140d|#ffffff
+cruzeiro|Cruzeiro|#2f6fed|#0a1020|#ffffff
+flamengo|Flamengo|#e31b23|#140b0c|#ffffff
+fluminense|Fluminense|#9b2247|#12090d|#ffffff
+gremio|Grêmio|#1a8fe3|#08121c|#ffffff
+internacional|Internacional|#e31b23|#150a0b|#ffffff
+mirassol|Mirassol|#f2c500|#14120a|#111111
+palmeiras|Palmeiras|#17a34a|#08140d|#ffffff
+remo|Remo|#3b82f6|#0a1020|#ffffff
+santos|Santos|#f5f5f5|#0b0b0b|#111111
+saopaulo|São Paulo|#e5202e|#140b0c|#ffffff
+vasco|Vasco|#f5f5f5|#0b0b0b|#111111
+vitoria|Vitória|#e31b23|#140b0c|#ffffff`.split("\n").forEach(l => {
+      const [k, n, a, f, o] = l.split("|");
+      TEMAS[k] = { n, a, f, o };
+    });
+
+    const temaLocal = {
+      ler() { try { return localStorage.getItem("bolaoTema") || ""; } catch (e) { return ""; } },
+      salvar(v) { try { localStorage.setItem("bolaoTema", v); } catch (e) {} }
+    };
+
+    function mistura(h1, h2, p) {
+      const c = h => [1, 3, 5].map(i => parseInt(h.substr(i, 2), 16));
+      const a = c(h1), b = c(h2);
+      return "#" + a.map((x, i) =>
+        Math.round(x + (b[i] - x) * p).toString(16).padStart(2, "0")).join("");
+    }
+
+    function aplicarTema(chave) {
+      if (!TEMAS[chave]) chave = "escuro";
+      const t = TEMAS[chave];
+      const claro = chave === "claro";
+      const r = document.documentElement.style;
+      const painel = claro ? "#ffffff" : mistura(t.f, "#ffffff", .07);
+      const painel2 = claro ? "#eaf0f9" : mistura(t.f, "#ffffff", .13);
+
+      document.documentElement.dataset.tema = chave;
+      r.setProperty("--fundo", t.f);
+      r.setProperty("--painel", painel);
+      r.setProperty("--painel2", painel2);
+      r.setProperty("--texto", claro ? "#10213a" : "#f4f7ff");
+      r.setProperty("--suave", claro ? "#5a6b85" : "#aab6ce");
+      r.setProperty("--borda", claro ? "#cfd9e8" : mistura(t.f, "#ffffff", .2));
+      r.setProperty("--campo", claro ? "#ffffff" : mistura(t.f, "#000000", .25));
+      r.setProperty("--verde", t.a);
+      r.setProperty("--on", t.o);
+      r.setProperty("--topo", claro
+        ? "linear-gradient(130deg,#dfe9f8,#d8f1e4)"
+        : `linear-gradient(130deg, ${painel2}, ${mistura(t.f, t.a, .28)})`);
+      document.querySelector('meta[name="theme-color"]').setAttribute("content", t.f);
+      $("temaSelect").value = chave;
+    }
+
+    $("temaSelect").innerHTML = Object.keys(TEMAS).map(k =>
+      `<option value="${k}">${TEMAS[k].n}</option>`).join("");
+
+    function aplicarTemaUsuario() {
+      const t = estado.dados.meuTema;
+      if (t && TEMAS[t]) { aplicarTema(t); temaLocal.salvar(t); }
+    }
+
+    $("temaSelect").addEventListener("change", async e => {
+      aplicarTema(e.target.value);
+      temaLocal.salvar(e.target.value);
+      try { await chamarServidor("definirTema", estado.token, e.target.value); } catch (x) {}
+    });
+
+    aplicarTema(temaLocal.ler());
+
+    /* ===== Logout por inatividade (10 min) ===== */
+    let ultimoCarregamento = Date.now();
+
+    document.addEventListener("visibilitychange", async () => {
+      if (document.hidden || !estado.token || !estado.dados) return;
+      if (Date.now() - ultimoCarregamento < 60000) return;
+      semOverlay = true;
+      try { await atualizarDadosSemBloqueio(); } catch (e) {}
+      semOverlay = false;
+    });
+
+    /* ===== Contato por WhatsApp ===== */
+    // Número com DDI + DDD, só dígitos. Ex.: 5577999999999
+    const WHATSAPP_NUMERO = "5577981396292";
+    const WHATSAPP_MSG = "Olá! Vim pelo Bolão FC e preciso de ajuda. 🙋";
+    if (/^\d{10,15}$/.test(WHATSAPP_NUMERO)) {
+      $("btnWhats").href = "https://wa.me/" + WHATSAPP_NUMERO +
+        "?text=" + encodeURIComponent(WHATSAPP_MSG);
+      $("btnWhats").classList.remove("oculto");
+    }
+
+    let ultimaAtividade = Date.now();
+    ["click", "keydown", "touchstart", "scroll"].forEach(ev =>
+      document.addEventListener(ev, () => { ultimaAtividade = Date.now(); }, { passive: true }));
+
+    async function sairLocal(msg) {
+      try { await chamarServidor("sair", estado.token); } catch (e) {}
+      guardar.apagar();
+      estado.token = ""; estado.usuario = null; estado.dados = null;
+      alternarLogin(true);
+      fecharCadastro();
+      limparMensagem();
+      if (msg) mostrarMensagem(msg, "");
+    }
+
+    setInterval(() => {
+      if (estado.token && Date.now() - ultimaAtividade > 10 * 60 * 1000) {
+        sairLocal("Sessão encerrada após 10 minutos sem uso. Entre novamente.");
+      }
+    }, 15000);
+
+    /* ===== Copiar ranking ===== */
+    $("btnCopiarRanking").addEventListener("click", async () => {
+      const r = estado.rankingAtual || [];
+      if (!r.length) return;
+      const texto = `🏆 ${estado.rankingTitulo}\n\n` + r.map(x =>
+        `${x.posicao}º ${x.nome} — ${x.pontos} pts (${x.exatos} exatos)`).join("\n");
+      try {
+        await navigator.clipboard.writeText(texto);
+        mostrarMensagem("Ranking copiado! É só colar no WhatsApp.", "ok");
+      } catch (e) {
+        prompt("Copie o texto abaixo:", texto);
+      }
+    });
+
+    /* ===== Administração: novas ações ===== */
+    async function alternarPagamento(id, pagou) { await acao("marcarPagamento", id, pagou); }
+    async function reativarUsuario(id) { await acao("reativarUsuario", id); }
+    async function apagarAviso(id) {
+      if (confirm("Apagar este aviso?")) await acao("apagarAviso", id);
+    }
+
+    function preencherEdicaoJogo() {
+      const j = estado.dados.jogos.find(x => String(x.id) === $("edJogoSel").value);
+      if (!j) return;
+      $("edCamp").value = j.campeonatoId;
+      $("edRodada").value = j.rodada;
+      $("edMandante").value = j.mandanteId;
+      $("edVisitante").value = j.visitanteId;
+      dtpDefinir("edData", String(j.dataHora).slice(0, 16));
+    }
+    $("edJogoSel").addEventListener("change", preencherEdicaoJogo);
+
+    $("formEditarJogo").addEventListener("submit", async e => {
+      e.preventDefault();
+      try {
+        await executar("editarJogo", estado.token, $("edJogoSel").value,
+          $("edRodada").value, $("edMandante").value, $("edVisitante").value,
+          $("edData").value, $("edCamp").value);
+        await atualizarDadosSemBloqueio();
+        mostrarMensagem("Partida atualizada.", "ok");
+      } catch (erro) {}
+    });
+
+    $("btnExcluirJogo").addEventListener("click", async () => {
+      const id = $("edJogoSel").value;
+      if (!id) return mostrarMensagem("Escolha a partida.", "erro");
+      if (!confirm("Excluir esta partida e TODOS os palpites dela? Não dá para desfazer.")) return;
+      try {
+        await executar("excluirJogo", estado.token, id);
+        $("formEditarJogo").reset();
+        await atualizarDadosSemBloqueio();
+        mostrarMensagem("Partida excluída.", "ok");
+      } catch (erro) {}
+    });
+
+    $("btnReabrirJogo").addEventListener("click", async () => {
+      const id = $("edJogoSel").value;
+      if (!id) return mostrarMensagem("Escolha a partida.", "erro");
+      if (!confirm("Desfazer o resultado e reabrir esta partida?")) return;
+      try {
+        await executar("reabrirJogo", estado.token, id);
+        await atualizarDadosSemBloqueio();
+        mostrarMensagem("Partida reaberta.", "ok");
+      } catch (erro) {}
+    });
+
+    $("formCamp").addEventListener("submit", async e => {
+      e.preventDefault();
+      try {
+        await executar("criarCampeonato", estado.token, $("campNome").value);
+        $("formCamp").reset();
+        await atualizarDadosSemBloqueio();
+        mostrarMensagem("Campeonato criado.", "ok");
+      } catch (erro) {}
+    });
+
+    $("formConfig").addEventListener("submit", async e => {
+      e.preventDefault();
+      try {
+        await executar("salvarConfig", estado.token, $("cfgPrazo").value, $("cfgValor").value);
+        await atualizarDadosSemBloqueio();
+        mostrarMensagem("Configurações salvas.", "ok");
+      } catch (erro) {}
+    });
+
+    $("formAviso").addEventListener("submit", async e => {
+      e.preventDefault();
+      try {
+        await executar("criarAviso", estado.token, $("avisoTexto").value);
+        $("formAviso").reset();
+        await atualizarDadosSemBloqueio();
+        mostrarMensagem("Aviso publicado.", "ok");
+      } catch (erro) {}
+    });
+
+    $("formPagLote").addEventListener("submit", async e => {
+      e.preventDefault();
+      try {
+        const r = await executar("marcarPagamentosLote", estado.token, $("pagLoteTexto").value);
+        $("formPagLote").reset();
+        await atualizarDadosSemBloqueio();
+        mostrarMensagem(r.marcados + " pagamento(s) marcado(s)." +
+          (r.naoEncontrados.length ? "\nNomes não encontrados: " + r.naoEncontrados.join(", ") : ""),
+          r.naoEncontrados.length ? "" : "ok");
+      } catch (erro) {}
+    });
+
+
+    /* ===== Horário do jogo e chips de rodada ===== */
+    function quando(j) {
+      try {
+        const d = new Date(j.dataHora);
+        const f = o => new Intl.DateTimeFormat("pt-BR",
+          Object.assign({ timeZone: "America/Sao_Paulo" }, o)).format(d);
+        return {
+          dia: f({ weekday: "short", day: "2-digit", month: "2-digit" }).replace(/\./g, ""),
+          hora: f({ hour: "2-digit", minute: "2-digit", hour12: false })
+        };
+      } catch (e) {
+        return { dia: j.dataExibicao, hora: "" };
+      }
+    }
+
+    function desenharChipsRodada(rodadas) {
+      const atual = $("filtroRodada").value;
+      const box = $("chipsRodada");
+      box.innerHTML = `<button class="chip ${atual === "" ? "ativa" : ""}" data-r="">Todas</button>` +
+        rodadas.map(r =>
+          `<button class="chip ${String(r) === atual ? "ativa" : ""}" data-r="${r}">Rodada ${r}</button>`
+        ).join("");
+      const ativo = box.querySelector(".ativa");
+      if (ativo) box.scrollLeft = ativo.offsetLeft - box.clientWidth / 2 + ativo.clientWidth / 2;
+    }
+
+    $("chipsRodada").addEventListener("click", e => {
+      const b = e.target.closest(".chip");
+      if (!b) return;
+      $("filtroRodada").value = b.dataset.r;
+      desenharJogos();
+    });
+
+    /* ===== Seletor digital de data e hora ===== */
+    const DIAS_CURTOS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+    const dtp = {};
+
+    function dtpDesenhar(alvo) {
+      const st = dtp[alvo], el = st.el;
+      el.querySelectorAll("[data-d]").forEach(b => b.classList.toggle("ativa", b.dataset.d === st.d));
+      el.querySelectorAll("[data-t]").forEach(b => b.classList.toggle("ativa", b.dataset.t === st.t));
+      el.querySelector('[data-r="data"]').value = st.d;
+      el.querySelector('[data-r="hora"]').value = st.t;
+      $(alvo).value = st.d && st.t ? st.d + "T" + st.t : "";
+      el.querySelector(".dtpResumo").textContent = st.d && st.t
+        ? "✅ " + st.d.split("-").reverse().join("/") + " às " + st.t
+        : "Escolha o dia e o horário";
+    }
+
+    function dtpDefinir(alvo, valor) {
+      const st = dtp[alvo];
+      if (!st) return;
+      const m = String(valor || "").match(/^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/);
+      st.d = m ? m[1] : "";
+      st.t = m ? m[2] : "";
+      dtpDesenhar(alvo);
+    }
+
+    function montarDtp(el) {
+      const alvo = el.dataset.alvo;
+      const hoje = new Date();
+      const dias = Array.from({ length: 10 }, (_, i) => {
+        const x = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + i);
+        const dd = String(x.getDate()).padStart(2, "0");
+        const mm = String(x.getMonth() + 1).padStart(2, "0");
+        return {
+          v: `${x.getFullYear()}-${mm}-${dd}`,
+          r: i === 0 ? "Hoje" : i === 1 ? "Amanhã" : `${DIAS_CURTOS[x.getDay()]} ${dd}/${mm}`
+        };
+      });
+      const horas = ["11:00", "13:00", "15:00", "16:00", "17:00", "18:30", "19:00", "20:00", "21:30"];
+
+      el.innerHTML = `
+        <div class="muted">Dia</div>
+        <div class="chips">${dias.map(d =>
+          `<button type="button" class="chip" data-d="${d.v}">${d.r}</button>`).join("")}</div>
+        <input type="date" data-r="data" style="margin:0 0 12px">
+        <div class="muted">Horário</div>
+        <div class="chips">${horas.map(h =>
+          `<button type="button" class="chip" data-t="${h}">${h}</button>`).join("")}</div>
+        <input type="time" data-r="hora" style="margin:0">
+        <div class="dtpResumo aviso" style="margin:12px 0 0"></div>`;
+
+      dtp[alvo] = { el, d: "", t: "" };
+
+      el.addEventListener("click", e => {
+        const b = e.target.closest(".chip");
+        if (!b) return;
+        if (b.dataset.d) dtp[alvo].d = b.dataset.d;
+        if (b.dataset.t) dtp[alvo].t = b.dataset.t;
+        dtpDesenhar(alvo);
+      });
+      el.addEventListener("input", e => {
+        const r = e.target.dataset.r;
+        if (r === "data") dtp[alvo].d = e.target.value;
+        if (r === "hora") dtp[alvo].t = e.target.value;
+        dtpDesenhar(alvo);
+      });
+
+      const form = $(alvo).closest("form");
+      if (form) form.addEventListener("reset", () => setTimeout(() => dtpDefinir(alvo, ""), 0));
+      dtpDesenhar(alvo);
+    }
+
+    document.querySelectorAll(".dtp").forEach(montarDtp);
+
+    /* ===== Administração em menu ===== */
+    const ADM_GRUPOS = {
+      "Adicionar time": "times", "Editar time": "times",
+      "Cadastrar jogo": "jogos", "Cadastrar jogos em lote": "jogos",
+      "Editar ou excluir partida": "jogos",
+      "Registrar resultado": "resultados",
+      "Participantes": "participantes", "Quem ainda não palpitou": "participantes",
+      "Palpites registrados": "participantes",
+      "Pagamentos": "pagamentos", "Mural de avisos": "avisos",
+      "Campeonatos e configurações": "config"
+    };
+    const ADM_TITULOS = {
+      jogos: "⚽ Jogos", resultados: "🏁 Resultados", times: "🛡️ Times",
+      participantes: "👥 Participantes", pagamentos: "💰 Pagamentos",
+      avisos: "📢 Avisos", config: "⚙️ Configurações"
+    };
+
+    function abrirAdm(g) {
+      document.querySelectorAll("#painelAdmin .card").forEach(c => {
+        const h3 = c.querySelector("h3");
+        const grupo = h3 ? (ADM_GRUPOS[h3.textContent.trim()] || "x") : "intro";
+        c.classList.toggle("oculto", grupo === "intro" ? !!g : grupo !== g);
+      });
+      $("admMenu").classList.toggle("oculto", !!g);
+      $("admVoltar").classList.toggle("oculto", !g);
+      $("admTitulo").textContent = g ? ADM_TITULOS[g] : "";
+      window.scrollTo({ top: 0 });
+    }
+
+    document.querySelectorAll("#admMenu .tile").forEach(b =>
+      b.addEventListener("click", () => abrirAdm(b.dataset.adm)));
+    $("btnAdmVoltar").addEventListener("click", () => abrirAdm(""));
+    abrirAdm("");
 
     (async function iniciar() {
       if (estado.token) {
