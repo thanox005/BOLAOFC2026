@@ -396,6 +396,14 @@
     .rodTit { color: var(--suave); font-size: 12px; font-weight: 800; margin: 10px 0 2px; text-transform: uppercase; }
     #formResultado .placarRes { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: end; }
     #formResultado .placarRes span { padding-bottom: 14px; font-weight: 900; }
+
+    /* modo print do ranking */
+    .sairPrint { display: none; }
+    body.modoPrint * { visibility: hidden !important; }
+    body.modoPrint #painelRanking, body.modoPrint #painelRanking * { visibility: visible !important; }
+    body.modoPrint #painelRanking { position: absolute; left: 0; top: 0; width: 100%; margin: 0; padding: 16px; background: var(--painel); }
+    body.modoPrint .noPrint { display: none !important; }
+    body.modoPrint .sairPrint { visibility: visible !important; display: block !important; position: fixed; right: 12px; top: 12px; z-index: 999; }
   </style>
 </head>
 
@@ -533,7 +541,8 @@
             <select id="filtroRankingRodada"><option value="">Geral</option></select>
           </label>
           <div class="botoes" style="margin:0 0 8px">
-            <button id="btnCopiarRanking" class="secundario pequeno">📋 Copiar ranking</button>
+            <button id="btnCopiarRanking" class="secundario pequeno noPrint">📋 Copiar ranking</button>
+            <button id="btnModoPrint" class="secundario pequeno noPrint">📸 Modo print</button>
           </div>
           <div id="listaRanking"></div>
         </div>
@@ -801,15 +810,19 @@
 
         <div class="card">
           <h3>Palpites registrados</h3>
-          <div class="grade">
-            <label style="margin:0">Rodada
+          <button type="button" id="btnVerPalpites" class="secundario">📋 Ver palpites de um participante</button>
+          <div id="boxVerPalpites" class="oculto" style="margin-top:12px">
+            <label>Participante
+              <select id="histUsuario"></select>
+            </label>
+            <label>Campeonato
+              <select id="histCamp"></select>
+            </label>
+            <label>Rodada
               <select id="histRodada"></select>
             </label>
-            <label style="margin:0">Buscar participante
-              <input id="histBusca" placeholder="Nome" autocomplete="off">
-            </label>
+            <div id="listaPalpitesAdmin" style="margin-top:10px"></div>
           </div>
-          <div id="listaPalpitesAdmin" style="margin-top:10px"></div>
         </div>
       </section>
     </section>
@@ -838,6 +851,8 @@
   <div id="barraSalvar" class="oculto">
     <button id="btnSalvarTodos" type="button">Salvar palpites</button>
   </div>
+
+  <button id="btnSairPrint" class="sairPrint pequeno">✕ Sair do print</button>
 
   <div id="toast"><span class="check"><svg viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span><span id="toastTexto"></span></div>
 
@@ -1231,15 +1246,28 @@
       return r;
     }
 
+    // Rascunhos da rodada que está na tela (ou de todas, se nenhuma estiver escolhida).
+    function sujosRodada() {
+      const rod = $("filtroRodada") ? $("filtroRodada").value : "";
+      const todos = sujos();
+      if (!rod) return todos;
+      return todos.filter(x => {
+        const j = estado.dados.jogos.find(g => String(g.id) === String(x.jogoId));
+        return j && String(j.rodada) === String(rod);
+      });
+    }
+
     function atualizarBarra() {
       const n = estado.dados && estado.usuario && estado.usuario.perfil !== "ADMIN"
-        ? sujos().length : 0;
+        ? sujosRodada().length : 0;
       const visivel = n > 0 &&
         !$("painelJogos").classList.contains("oculto") &&
         !$("telaApp").classList.contains("oculto");
       $("barraSalvar").classList.toggle("oculto", !visivel);
       document.body.classList.toggle("comBarra", visivel);
-      $("btnSalvarTodos").textContent = n === 1 ? "Salvar 1 palpite" : "Salvar " + n + " palpites";
+      const rod = $("filtroRodada") ? $("filtroRodada").value : "";
+      const rotulo = rod ? "da rodada " + rod : "";
+      $("btnSalvarTodos").textContent = (n === 1 ? "Salvar 1 palpite " : "Salvar " + n + " palpites ") + rotulo;
     }
 
     $("listaJogos").addEventListener("input", e => {
@@ -1258,7 +1286,7 @@
     });
 
     async function salvarTodosPalpites() {
-      const lista = sujos();
+      const lista = sujosRodada();
       if (!lista.length) return;
 
       const incompleto = lista.find(x => x.m === "" || x.v === "");
@@ -2161,9 +2189,7 @@ vitoria|Vitória|#e31b23|#140b0c|#ffffff`.split("\n").forEach(l => {
       } catch (erro) {}
     });
 
-    /* ===== Histórico de palpites do admin (por participante) ===== */
-    const histAbertos = {};
-
+    /* ===== Palpites registrados (admin): participante > campeonato > rodada ===== */
     function rodadaAtualAdmin() {
       const js = estado.dados.jogos.filter(j => String(j.campeonatoId) === String(estado.camp));
       const pend = js.filter(j => j.status !== "ENCERRADO").map(j => j.rodada).sort((a, b) => a - b)[0];
@@ -2174,70 +2200,96 @@ vitoria|Vitória|#e31b23|#140b0c|#ffffff`.split("\n").forEach(l => {
 
     function desenharPalpitesAdmin() {
       const d = estado.dados;
-      const todos = (d.palpitesAdmin || [])
-        .filter(p => String(p.campeonatoId) === String(estado.camp));
-
-      const sel = $("histRodada");
-      const anterior = sel.value;
-      const rodadas = [...new Set(todos.map(p => p.rodada))].filter(r => r > 0).sort((a, b) => a - b);
-      sel.innerHTML = '<option value="">Todas as rodadas</option>' +
-        rodadas.map(r => `<option value="${r}">Rodada ${r}</option>`).join("");
-
-      if (estado.histInit == null) {
-        estado.histInit = true;
-        const ra = rodadaAtualAdmin();
-        sel.value = rodadas.includes(Number(ra)) ? String(ra) : "";
-      } else {
-        sel.value = anterior;
+      if (!estado.hist) estado.hist = { u: "", camp: "", rod: "", inicRod: false };
+      const H = estado.hist;
+      const camps = d.campeonatos || [];
+      if (!camps.some(c => String(c.id) === String(H.camp))) {
+        H.camp = estado.camp || (camps[0] ? camps[0].id : "");
+        H.inicRod = false;
       }
 
-      const rod = sel.value;
-      const busca = norm($("histBusca").value);
+      const parts = (d.usuarios || []).filter(u => u.perfil !== "ADMIN")
+        .slice().sort((a, b) => a.nome.localeCompare(b.nome));
+      $("histUsuario").innerHTML = '<option value="">Escolha o participante</option>' +
+        parts.map(u => `<option value="${textoSeguro(u.id)}">${textoSeguro(u.nome)}${u.ativo ? "" : " (desativado)"}</option>`).join("");
+      $("histUsuario").value = H.u;
 
-      const porU = {};
-      todos
-        .filter(p => (!rod || String(p.rodada) === rod) && (!busca || norm(p.nome).includes(busca)))
-        .forEach(p => {
-          (porU[p.usuarioId] = porU[p.usuarioId] || { id: p.usuarioId, nome: p.nome, itens: [] }).itens.push(p);
-        });
+      $("histCamp").innerHTML = camps.map(c =>
+        `<option value="${textoSeguro(c.id)}">${textoSeguro(c.nome)}</option>`).join("");
+      $("histCamp").value = H.camp;
 
-      const blocos = Object.values(porU).sort((a, b) => a.nome.localeCompare(b.nome));
-      if (!blocos.length) {
-        $("listaPalpitesAdmin").innerHTML = '<div class="vazio">Nenhum palpite nesse filtro.</div>';
+      const rods = [...new Set((d.jogos || [])
+        .filter(j => String(j.campeonatoId) === String(H.camp)).map(j => j.rodada))]
+        .sort((a, b) => a - b);
+      if (!H.inicRod) {
+        H.inicRod = true;
+        const ra = rodadaAtualAdmin();
+        H.rod = rods.includes(Number(ra)) ? String(ra) : "";
+      }
+      if (H.rod && !rods.includes(Number(H.rod))) H.rod = "";
+      $("histRodada").innerHTML = '<option value="">Todas as rodadas</option>' +
+        rods.map(r => `<option value="${r}">Rodada ${r}</option>`).join("");
+      $("histRodada").value = H.rod;
+
+      const box = $("listaPalpitesAdmin");
+      if (!H.u) {
+        box.innerHTML = '<div class="vazio">Escolha um participante para ver os palpites.</div>';
         return;
       }
 
-      $("listaPalpitesAdmin").innerHTML = blocos.map(b => {
-        b.itens.sort((x, y) => x.rodada - y.rodada || x.jogo.localeCompare(y.jogo));
-        const pts = b.itens.reduce((t, p) => t + (p.pts || 0), 0);
-        const temPts = b.itens.some(p => p.pts != null);
-        let corpo = "", rodAnt = null;
-        b.itens.forEach(p => {
-          if (!rod && p.rodada !== rodAnt) {
-            corpo += `<div class="rodTit">Rodada ${p.rodada}</div>`;
-            rodAnt = p.rodada;
-          }
-          corpo += `<div class="linha" style="padding:8px 0">
-            <span>${textoSeguro(p.jogo)}</span>
-            <span><strong>${p.gm} × ${p.gv}</strong>${p.pts != null
-              ? ` <span class="muted">· ${p.pts} pt${p.pts === 1 ? "" : "s"}</span>` : ""}</span>
-          </div>`;
-        });
-        const aberto = histAbertos[b.id] || (busca && blocos.length <= 3);
-        return `<details class="bloco" data-u="${textoSeguro(b.id)}" ${aberto ? "open" : ""}>
-          <summary><span>${textoSeguro(b.nome)}</span>
-            <span class="muted">${b.itens.length} palpite${b.itens.length === 1 ? "" : "s"}${temPts ? " · " + pts + " pts" : ""}</span></summary>
-          <div class="corpo">${corpo}</div>
-        </details>`;
-      }).join("");
+      const itens = (d.palpitesAdmin || []).filter(p =>
+        String(p.usuarioId) === String(H.u) &&
+        String(p.campeonatoId) === String(H.camp) &&
+        (!H.rod || String(p.rodada) === String(H.rod)))
+        .sort((a, b) => a.rodada - b.rodada || a.jogo.localeCompare(b.jogo));
+
+      if (!itens.length) {
+        box.innerHTML = '<div class="vazio">Nenhum palpite nesse filtro.</div>';
+        return;
+      }
+
+      const total = itens.reduce((t, p) => t + (p.pts || 0), 0);
+      const temPts = itens.some(p => p.pts != null);
+      let html = `<div class="muted" style="margin:6px 0">${itens.length} palpite(s)` +
+        (temPts ? " · " + total + " pts" : "") + "</div>";
+      let rodAnt = null;
+      itens.forEach(p => {
+        if (!H.rod && p.rodada !== rodAnt) {
+          html += `<div class="rodTit">Rodada ${p.rodada}</div>`;
+          rodAnt = p.rodada;
+        }
+        html += `<div class="linha" style="padding:8px 0">
+          <span>${textoSeguro(p.jogo)}</span>
+          <span><strong>${p.gm} × ${p.gv}</strong>${p.pts != null
+            ? ` <span class="muted">· ${p.pts} pt${p.pts === 1 ? "" : "s"}</span>` : ""}</span>
+        </div>`;
+      });
+      box.innerHTML = html;
     }
 
-    $("listaPalpitesAdmin").addEventListener("toggle", e => {
-      const el = e.target;
-      if (el && el.dataset && el.dataset.u) histAbertos[el.dataset.u] = el.open;
-    }, true);
-    $("histRodada").addEventListener("change", desenharPalpitesAdmin);
-    $("histBusca").addEventListener("input", desenharPalpitesAdmin);
+    $("btnVerPalpites").addEventListener("click", () => {
+      const oculto = $("boxVerPalpites").classList.toggle("oculto");
+      if (!oculto) desenharPalpitesAdmin();
+    });
+    $("histUsuario").addEventListener("change", e => {
+      estado.hist.u = e.target.value; desenharPalpitesAdmin();
+    });
+    $("histCamp").addEventListener("change", e => {
+      estado.hist.camp = e.target.value; estado.hist.inicRod = false; estado.hist.rod = "";
+      desenharPalpitesAdmin();
+    });
+    $("histRodada").addEventListener("change", e => {
+      estado.hist.rod = e.target.value; desenharPalpitesAdmin();
+    });
+
+    /* ===== Modo print do ranking ===== */
+    $("btnModoPrint").addEventListener("click", () => {
+      window.scrollTo(0, 0);
+      document.body.classList.add("modoPrint");
+    });
+    $("btnSairPrint").addEventListener("click", () => {
+      document.body.classList.remove("modoPrint");
+    });
 
     /* ===== Excluir participante (conta já desativada) ===== */
     $("listaUsuarios").addEventListener("click", async e => {
